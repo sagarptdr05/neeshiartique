@@ -90,13 +90,12 @@ function LoginForm() {
           <div className="space-y-1.5">
             <div className="flex justify-between items-center">
               <label className="block">Password</label>
-              <button
-                type="button"
-                onClick={() => alert('To reset your password, please contact support at Neeshita.art27@gmail.com.')}
-                className="text-[10px] text-brand-rose hover:text-brand-cocoa transition-colors capitalize font-semibold tracking-normal"
+              <Link
+                href="/forgot-password"
+                className="text-[10px] text-brand-rose hover:text-brand-cocoa transition-colors capitalize font-semibold tracking-normal normal-case"
               >
                 Forgot Password?
-              </button>
+              </Link>
             </div>
             <div className="relative">
               <Lock size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-cocoa/40" />

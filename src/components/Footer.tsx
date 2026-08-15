@@ -161,8 +161,21 @@ export default function Footer() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-brand-beige/50 mt-10 pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-brand-cocoa/60 font-medium">
-        <span>© {new Date().getFullYear()} Neeshiartique. All rights reserved.</span>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-brand-beige/50 mt-10 pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-brand-cocoa/60 font-medium gap-3">
+        <div className="flex flex-col space-y-1 text-center sm:text-left">
+          <span>© 2026 Neeshiartique. All rights reserved.</span>
+          <span>
+            Crafted with ♡ by Sagar Patidar ·{' '}
+            <a
+              href="https://www.instagram.com/sagarpatidar05/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-brand-rose hover:underline font-semibold"
+            >
+              @sagarpatidar05
+            </a>
+          </span>
+        </div>
         <div className="flex space-x-6 mt-3 sm:mt-0">
           <Link href="/contact" className="hover:text-brand-rose transition-colors">Privacy Policy</Link>
           <Link href="/contact" className="hover:text-brand-rose transition-colors">Terms of Service</Link>
