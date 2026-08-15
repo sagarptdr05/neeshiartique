@@ -1,0 +1,29 @@
+{
+  "hero_heading": "Little Things, Crocheted With Love.",
+  "hero_description": "Handmade crochet creations, thoughtful gifts and custom pieces — made one stitch at a time.",
+  "hero_image_path": "/images/butterfly_keychain.jpg",
+  "hero_cta_text": "Shop Crochet",
+  "hero_cta_link": "/shop",
+  "announcement_text": "Handmade with love • Custom orders welcome ♡",
+  "announcement_enabled": true,
+  "announcement_link": "",
+  "featured_section_heading": "Made With Love",
+  "featured_section_description": "Some of our little favourites.",
+  "latest_section_heading": "Explore Our Crochet",
+  "latest_section_description": "Shop by categories.",
+  "custom_cta_heading": "Have Something Special in Mind?",
+  "custom_cta_description": "Tell us what you're imagining, and we'll create something especially for you.",
+  "section_visibility": {
+    "hero": true,
+    "announcement": true,
+    "featured": true,
+    "artist": true,
+    "latest": true,
+    "custom_cta": true,
+    "instagram": true
+  },
+  "section_order": ["hero", "announcement", "latest", "featured", "artist", "custom_cta", "instagram"],
+  "featured_products": ["prod-1", "prod-2", "prod-3", "prod-4"],
+  "latest_products": ["prod-5", "prod-6", "prod-7", "prod-8"],
+  "updated_at": "2026-08-15T18:00:00.000Z"
+}

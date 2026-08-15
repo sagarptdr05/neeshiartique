@@ -16,8 +16,8 @@
     "shipping": 40,
     "discount": 0,
     "total": 289,
-    "payment_status": "payment_verified",
-    "order_status": "being_crafted",
+    "payment_status": "refunded",
+    "order_status": "delivered",
     "shipping_address": {
       "fullName": "Sagar Patidar",
       "email": "sagar@example.com",
@@ -33,6 +33,10 @@
     "confirmed_at": "2026-08-14T12:20:00.000Z",
     "crafted_at": "2026-08-15T09:10:00.000Z",
     "created_at": "2026-08-14T11:20:00.000Z",
-    "updated_at": "2026-08-15T09:10:00.000Z"
+    "updated_at": "2026-08-15T18:02:25.913Z",
+    "quality_checked_at": "2026-08-15T17:49:19.977Z",
+    "packed_at": "2026-08-15T17:49:57.179Z",
+    "shipped_at": "2026-08-15T17:49:57.610Z",
+    "delivered_at": "2026-08-15T17:49:58.275Z"
   }
 ]

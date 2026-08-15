@@ -37,7 +37,8 @@ import {
   Home,
   Menu,
   ChevronRight,
-  Loader2
+  Loader2,
+  FileText
 } from 'lucide-react';
 import AnnouncementBar from '@/components/AnnouncementBar';
 import Navbar from '@/components/Navbar';
@@ -451,6 +452,27 @@ export default function AdminDashboard() {
                 >
                   <Percent size={14} />
                   <span>Coupons</span>
+                </button>
+              </div>
+
+              {/* Group 4: Website Content */}
+              <div className="space-y-1">
+                <span className="text-[9px] font-bold text-brand-cocoa/40 uppercase tracking-widest block pl-2 mb-1.5">
+                  Website Content
+                </span>
+                <button
+                  onClick={() => router.push('/admin/homepage')}
+                  className="w-full flex items-center space-x-2.5 py-2 px-3 rounded text-xs font-bold transition-all text-brand-cocoa/80 hover:bg-brand-beige/20 hover:text-brand-rose"
+                >
+                  <FileText size={14} />
+                  <span>Homepage</span>
+                </button>
+                <button
+                  onClick={() => router.push('/admin/artist')}
+                  className="w-full flex items-center space-x-2.5 py-2 px-3 rounded text-xs font-bold transition-all text-brand-cocoa/80 hover:bg-brand-beige/20 hover:text-brand-rose"
+                >
+                  <User size={14} />
+                  <span>Artist Profile</span>
                 </button>
               </div>
             </nav>
