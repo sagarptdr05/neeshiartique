@@ -22,7 +22,7 @@ export function middleware(request: NextRequest) {
   }
 
   // Protect gated customer routes
-  const gatedPaths = ['/account', '/wishlist', '/custom-orders', '/checkout', '/track-order'];
+  const gatedPaths = ['/account', '/wishlist', '/custom-orders', '/checkout', '/track-order', '/order-received'];
   const isGated = gatedPaths.some(p => path.startsWith(p));
   if (isGated) {
     if (!session || !session.value) {
@@ -59,6 +59,7 @@ export const config = {
     '/wishlist/:path*',
     '/custom-orders/:path*',
     '/checkout/:path*',
-    '/track-order/:path*'
+    '/track-order/:path*',
+    '/order-received/:path*'
   ],
 };

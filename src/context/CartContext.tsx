@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useStore } from './StoreContext';
+import { calculateShipping, calculateCouponDiscount, calculateTotal } from '@/lib/pricing';
 
 export interface CartItem {
   productId: string;
@@ -103,8 +104,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   // Totals calculations
   const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
   
-  // Custom shipping logic (free shipping above 500, else 40 rupee shipping)
-  const shipping = subtotal > 500 || subtotal === 0 ? 0 : 40;
+  // Shipping uses the same rule the order API applies, so the basket preview
+  // always matches the total the server calculates at checkout.
+  const shipping = calculateShipping(subtotal);
 
   // Recalculate coupon discounts when subtotal changes
   useEffect(() => {
@@ -124,17 +126,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (activeCoupon.minSubtotal && subtotal < activeCoupon.minSubtotal) {
-      setCouponDiscount(0); // below minimum requirement
-      return;
-    }
-
-    if (activeCoupon.type === 'percentage') {
-      const discount = Math.round(subtotal * (activeCoupon.value / 100));
-      setCouponDiscount(discount);
-    } else {
-      setCouponDiscount(Math.min(activeCoupon.value, subtotal));
-    }
+    setCouponDiscount(calculateCouponDiscount(activeCoupon, subtotal));
   }, [subtotal, couponCode, coupons]);
 
   // Apply Coupon
@@ -168,7 +160,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const total = Math.max(0, subtotal + shipping - couponDiscount);
+  const total = calculateTotal(subtotal, shipping, couponDiscount);
 
   return (
     <CartContext.Provider

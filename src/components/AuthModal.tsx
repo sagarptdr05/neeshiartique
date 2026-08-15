@@ -186,7 +186,7 @@ export default function AuthModal() {
                     required
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
-                    placeholder="name@example.com"
+                    placeholder="you@example.com"
                     className="w-full bg-brand-cream border border-brand-beige rounded pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-brand-rose font-medium normal-case text-brand-cocoa"
                   />
                 </div>
@@ -236,7 +236,7 @@ export default function AuthModal() {
                     required
                     value={regName}
                     onChange={(e) => setRegName(e.target.value)}
-                    placeholder="e.g. Sagar Patidar"
+                    placeholder="Your Name"
                     className="w-full bg-brand-cream border border-brand-beige rounded pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-brand-rose font-medium normal-case text-brand-cocoa"
                   />
                 </div>
@@ -251,7 +251,7 @@ export default function AuthModal() {
                     required
                     value={regEmail}
                     onChange={(e) => setRegEmail(e.target.value)}
-                    placeholder="name@example.com"
+                    placeholder="you@example.com"
                     className="w-full bg-brand-cream border border-brand-beige rounded pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-brand-rose font-medium normal-case text-brand-cocoa"
                   />
                 </div>
@@ -266,7 +266,7 @@ export default function AuthModal() {
                     required
                     value={regPhone}
                     onChange={(e) => setRegPhone(e.target.value)}
-                    placeholder="e.g. 6388992271"
+                    placeholder="Your Phone Number"
                     className="w-full bg-brand-cream border border-brand-beige rounded pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-brand-rose font-medium normal-case text-brand-cocoa"
                   />
                 </div>
@@ -281,7 +281,7 @@ export default function AuthModal() {
                     required
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder="Create a password"
                     className="w-full bg-brand-cream border border-brand-beige rounded pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-brand-rose font-medium normal-case text-brand-cocoa"
                   />
                 </div>
@@ -296,7 +296,7 @@ export default function AuthModal() {
                     required
                     value={regConfirmPassword}
                     onChange={(e) => setRegConfirmPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder="Confirm your password"
                     className="w-full bg-brand-cream border border-brand-beige rounded pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-brand-rose font-medium normal-case text-brand-cocoa"
                   />
                 </div>

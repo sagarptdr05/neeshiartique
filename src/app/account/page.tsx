@@ -1,64 +1,64 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { User, ShoppingBag, MessageSquare, MapPin, ChevronRight, Clock, Star, LogOut } from 'lucide-react';
+import { User, ShoppingBag, MessageSquare, MapPin, ChevronRight, LogOut, Loader2 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
+import { orderStatusLabel, paymentStatusLabel } from '@/lib/orderStatus';
 import AnnouncementBar from '@/components/AnnouncementBar';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 
 export default function Account() {
   const router = useRouter();
-  const [authorized, setAuthorized] = useState(false);
+  const { orders, loadingOrders, customOrders, user, loadingAuth, logout } = useStore();
 
+  // Middleware already blocks signed-out visitors; this only covers a session
+  // that expires while the page is open.
   useEffect(() => {
-    const role = localStorage.getItem('neeshi_user_role');
-    if (!role) {
+    if (!loadingAuth && !user) {
       router.push('/login?redirect=/account');
-    } else {
-      setAuthorized(true);
     }
-  }, [router]);
+  }, [loadingAuth, user, router]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('neeshi_user_role');
-    localStorage.removeItem('neeshi_user_email');
-    router.push('/login');
-  };
-
-  const { orders, customOrders } = useStore();
-
-  if (!authorized) {
+  if (loadingAuth) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-brand-cream text-brand-rose font-serif italic">
-        Loading account details... ♡
+      <div className="min-h-screen flex flex-col items-center justify-center bg-brand-cream text-brand-rose space-y-3 font-serif italic">
+        <Loader2 className="animate-spin" size={26} />
+        <span>Loading account details... ♡</span>
       </div>
     );
   }
 
-  // Simulated static address details
-  const address = {
-    street: 'Sector 3, HSR Layout',
-    city: 'Bengaluru',
-    state: 'Karnataka',
-    pincode: '560102',
-    country: 'India',
-  };
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-brand-cream text-brand-rose font-serif italic">
+        Redirecting to sign in... ♡
+      </div>
+    );
+  }
 
-  // Helper to color custom status tags
+  const firstName = user.name.split(' ')[0];
+
+  // The most recent order's address doubles as the customer's saved address —
+  // there is no separate address book, so nothing is ever invented here.
+  const lastAddress = orders[0]?.shipping_address;
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'new':
-        return 'bg-blue-100 text-blue-800';
+      case 'pending_payment':
+        return 'bg-amber-100 text-amber-800';
       case 'contacted':
       case 'in_discussion':
         return 'bg-purple-100 text-purple-800';
+      case 'payment_received':
       case 'approved':
       case 'confirmed':
-        return 'bg-amber-100 text-amber-800';
+        return 'bg-blue-100 text-blue-800';
       case 'being_crafted':
+      case 'quality_check':
         return 'bg-brand-sage/10 text-brand-sage border border-brand-sage/20';
       case 'packed':
       case 'shipped':
@@ -66,7 +66,6 @@ export default function Account() {
       case 'completed':
       case 'delivered':
         return 'bg-emerald-100 text-emerald-800';
-      case 'failed':
       case 'rejected':
       case 'cancelled':
         return 'bg-rose-100 text-rose-800';
@@ -77,25 +76,22 @@ export default function Account() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Announcement Bar */}
       <AnnouncementBar />
-
-      {/* Navbar */}
       <Navbar />
 
       {/* Header Banner */}
       <section className="bg-brand-beige/25 border-b border-brand-beige py-12 text-center relative overflow-hidden">
         <div className="absolute top-4 left-6 text-brand-rose/10 text-3xl font-serif select-none pointer-events-none">✿</div>
         <div className="absolute bottom-4 right-10 text-brand-rose/15 text-4xl font-serif select-none pointer-events-none">❀</div>
-        
+
         <div className="max-w-3xl mx-auto px-4 space-y-3">
           <span className="text-xs font-bold tracking-widest text-brand-rose uppercase">
             My Account
           </span>
           <h1 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold text-brand-cocoa flex flex-col sm:flex-row items-center justify-center gap-3">
-            <span>Welcome Back, Sagar</span>
+            <span>Welcome Back, {firstName}</span>
             <button
-              onClick={handleLogout}
+              onClick={logout}
               className="text-[10px] border border-brand-beige bg-brand-cream hover:bg-brand-rose hover:text-brand-cream transition-colors text-brand-cocoa py-1 px-3.5 rounded font-bold uppercase tracking-wider flex items-center space-x-1 shadow-sm"
             >
               <LogOut size={12} />
@@ -109,13 +105,10 @@ export default function Account() {
         </div>
       </section>
 
-      {/* Main Account Dashboard Layout */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex-grow grid grid-cols-1 lg:grid-cols-12 gap-10">
-        
-        {/* Left Side: Profile Info Summary Card */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex-grow grid grid-cols-1 lg:grid-cols-12 gap-10 w-full">
+
+        {/* Left: Profile summary */}
         <div className="lg:col-span-4 space-y-6">
-          
-          {/* Profile Card */}
           <div className="border border-brand-beige rounded-lg bg-brand-offwhite p-5 sm:p-6 shadow-sm space-y-4">
             <h2 className="font-serif text-lg font-bold text-brand-cocoa border-b border-brand-beige/50 pb-2 flex items-center space-x-2">
               <User size={18} className="text-brand-rose" />
@@ -124,47 +117,57 @@ export default function Account() {
             <div className="text-sm space-y-2 text-brand-cocoa/85">
               <p>
                 <strong className="block font-bold text-brand-cocoa">Name:</strong>
-                Sagar Patidar
+                {user.name}
               </p>
               <p>
                 <strong className="block font-bold text-brand-cocoa">Email:</strong>
-                sagar@example.com
+                {user.email}
               </p>
-              <p>
-                <strong className="block font-bold text-brand-cocoa">Phone:</strong>
-                +91 98765 43210
-              </p>
+              {user.phone && (
+                <p>
+                  <strong className="block font-bold text-brand-cocoa">Phone:</strong>
+                  {user.phone}
+                </p>
+              )}
             </div>
           </div>
 
-          {/* Default Address Book Card */}
           <div className="border border-brand-beige rounded-lg bg-brand-offwhite p-5 sm:p-6 shadow-sm space-y-4">
             <h2 className="font-serif text-lg font-bold text-brand-cocoa border-b border-brand-beige/50 pb-2 flex items-center space-x-2">
               <MapPin size={18} className="text-brand-rose" />
-              <span>Primary Address</span>
+              <span>Recent Delivery Address</span>
             </h2>
-            <div className="text-sm text-brand-cocoa/85 space-y-1">
-              <p className="font-semibold text-brand-cocoa">Sagar Patidar</p>
-              <p>{address.street}</p>
-              <p>{address.city}, {address.state}</p>
-              <p>{address.country} - {address.pincode}</p>
-            </div>
+            {lastAddress ? (
+              <div className="text-sm text-brand-cocoa/85 space-y-1">
+                <p className="font-semibold text-brand-cocoa">{lastAddress.fullName}</p>
+                <p>{lastAddress.address}</p>
+                <p>{lastAddress.city}, {lastAddress.state}</p>
+                <p>{lastAddress.country} - {lastAddress.pincode}</p>
+              </div>
+            ) : (
+              <p className="text-xs italic text-brand-cocoa/60">
+                You&apos;ll enter your delivery address at checkout, and it will appear here.
+              </p>
+            )}
           </div>
         </div>
 
-        {/* Right Side: Orders and Custom Orders tabs */}
+        {/* Right: Orders and custom requests */}
         <div className="lg:col-span-8 space-y-10">
-          
-          {/* Section: Order History */}
+
           <div className="space-y-4">
             <h2 className="font-serif text-xl sm:text-2xl font-bold text-brand-cocoa border-b border-brand-beige pb-3 flex items-center space-x-2.5">
               <ShoppingBag size={20} className="text-brand-rose" />
-              <span>Your Orders</span>
+              <span>My Orders</span>
             </h2>
 
-            {orders.length === 0 ? (
+            {loadingOrders ? (
+              <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-8 text-center text-sm italic text-brand-cocoa/60 flex items-center justify-center gap-2">
+                <Loader2 className="animate-spin" size={16} /> Loading your orders...
+              </div>
+            ) : orders.length === 0 ? (
               <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-8 text-center text-sm italic text-brand-cocoa/60">
-                You haven't placed any orders yet. Visit our shop to find something beautiful! ♡
+                You haven&apos;t placed any orders yet. Visit our shop to find something beautiful! ♡
               </div>
             ) : (
               <div className="space-y-4">
@@ -174,31 +177,37 @@ export default function Account() {
                     className="border border-brand-beige rounded-lg bg-brand-offwhite p-4 sm:p-5 shadow-sm hover:shadow transition-shadow flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
                   >
                     <div className="space-y-1.5 text-xs text-brand-cocoa/80">
-                      <div className="flex items-center space-x-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="font-serif text-sm font-bold text-brand-cocoa">{order.id}</span>
                         <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded ${getStatusColor(order.order_status)}`}>
-                          {order.order_status.replace('_', ' ')}
+                          {orderStatusLabel(order.order_status)}
+                        </span>
+                        <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded bg-brand-beige/60 text-brand-cocoa/80">
+                          {paymentStatusLabel(order.payment_status)}
                         </span>
                       </div>
                       <p className="font-medium text-brand-rose">
                         {order.items.length} item(s) • Total: <strong>₹{order.total}</strong>
                       </p>
                       <p className="text-[10px] text-brand-cocoa/50">
-                        Date: {new Date(order.created_at).toLocaleDateString('en-IN', {
+                        Placed: {new Date(order.created_at).toLocaleDateString('en-IN', {
                           day: 'numeric',
                           month: 'short',
                           year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
                         })}
                       </p>
+                      {order.tracking_number && (
+                        <p className="text-[10px] font-semibold text-brand-cocoa/70">
+                          {order.carrier} • Tracking: <span className="font-mono">{order.tracking_number}</span>
+                        </p>
+                      )}
                     </div>
-                    
+
                     <Link
-                      href={`/track-order?id=${order.id}`}
-                      className="text-xs font-bold text-brand-rose hover:text-brand-cocoa transition-colors flex items-center space-x-1 sm:self-center border border-brand-beige bg-brand-cream/80 hover:bg-brand-cream py-2 px-4 rounded shadow-sm"
+                      href={`/account/orders/${encodeURIComponent(order.id)}`}
+                      className="text-xs font-bold text-brand-rose hover:text-brand-cocoa transition-colors flex items-center space-x-1 sm:self-center border border-brand-beige bg-brand-cream/80 hover:bg-brand-cream py-2 px-4 rounded shadow-sm whitespace-nowrap"
                     >
-                      <span>Track Order</span>
+                      <span>View Order</span>
                       <ChevronRight size={12} />
                     </Link>
                   </div>
@@ -207,7 +216,7 @@ export default function Account() {
             )}
           </div>
 
-          {/* Section: Custom Requests */}
+          {/* Custom Requests */}
           <div className="space-y-4">
             <h2 className="font-serif text-xl sm:text-2xl font-bold text-brand-cocoa border-b border-brand-beige pb-3 flex items-center space-x-2.5">
               <MessageSquare size={20} className="text-brand-rose" />
@@ -216,7 +225,7 @@ export default function Account() {
 
             {customOrders.length === 0 ? (
               <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-8 text-center text-sm italic text-brand-cocoa/60">
-                You haven't submitted any custom requests yet. Have an idea? Tell us about it! ♡
+                You haven&apos;t submitted any custom requests yet. Have an idea? Tell us about it! ♡
               </div>
             ) : (
               <div className="space-y-4">
@@ -256,7 +265,7 @@ export default function Account() {
 
                     <div className="text-xs text-brand-cocoa/80 bg-brand-cream/40 border border-brand-beige/50 p-3 rounded">
                       <strong className="block font-bold text-brand-cocoa mb-1">Details:</strong>
-                      "{req.customizationDetails}"
+                      &ldquo;{req.customizationDetails}&rdquo;
                     </div>
                   </div>
                 ))}
@@ -265,10 +274,8 @@ export default function Account() {
           </div>
 
         </div>
-
       </main>
 
-      {/* Footer */}
       <Footer />
     </div>
   );

@@ -10,11 +10,26 @@ import {
   Coupon,
   INITIAL_PRODUCTS,
   INITIAL_CATEGORIES,
-  INITIAL_ORDERS,
   INITIAL_CUSTOM_ORDERS,
   INITIAL_REVIEWS,
   INITIAL_COUPONS,
 } from '../data/mockData';
+import { AdminOrderAction } from '@/lib/orderStatus';
+
+/** Payload the checkout sends to `/api/orders`; prices are set by the server. */
+export interface PlaceOrderInput {
+  items: { productId: string; quantity: number; customization?: string }[];
+  shipping_address: Order['shipping_address'];
+  customer_notes?: string;
+  coupon_code?: string;
+  idempotency_key: string;
+}
+
+export interface OrderMutationResult {
+  success: boolean;
+  order?: Order;
+  message?: string;
+}
 
 interface StoreContextType {
   products: Product[];
@@ -44,11 +59,16 @@ interface StoreContextType {
   updateCategory: (category: Category) => void;
   deleteCategory: (id: string) => void;
   
-  // Order handlers
-  placeOrder: (order: Omit<Order, 'id' | 'created_at'>) => Order;
-  updateOrderStatus: (id: string, status: Order['order_status']) => void;
-  updateOrderPaymentStatus: (id: string, status: Order['payment_status']) => void;
-  
+  // Order handlers (server-backed via /api/orders)
+  loadingOrders: boolean;
+  refreshOrders: () => Promise<void>;
+  placeOrder: (input: PlaceOrderInput) => Promise<OrderMutationResult>;
+  runOrderAction: (
+    id: string,
+    action: AdminOrderAction,
+    payload?: Record<string, unknown>
+  ) => Promise<OrderMutationResult>;
+
   // Custom Order handlers
   submitCustomOrder: (request: Omit<CustomOrderRequest, 'id' | 'created_at' | 'status'>) => void;
   updateCustomOrderStatus: (id: string, status: CustomOrderRequest['status']) => void;
@@ -70,6 +90,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
   const [customOrders, setCustomOrders] = useState<CustomOrderRequest[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
@@ -125,9 +146,29 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return data ? JSON.parse(data) : initial;
     };
 
-    setProducts(getLocal('neeshi_products', INITIAL_PRODUCTS));
+    const savedProducts = getLocal<Product[]>('neeshi_products', []);
+    if (savedProducts.length === 0) {
+      setProducts(INITIAL_PRODUCTS);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('neeshi_products', JSON.stringify(INITIAL_PRODUCTS));
+      }
+    } else {
+      // Merge initial products that aren't in local storage (checking by ID)
+      const merged = [...savedProducts];
+      let updated = false;
+      INITIAL_PRODUCTS.forEach((initial) => {
+        if (!merged.some((p) => p.id === initial.id)) {
+          merged.push(initial);
+          updated = true;
+        }
+      });
+      setProducts(merged);
+      if (updated && typeof window !== 'undefined') {
+        localStorage.setItem('neeshi_products', JSON.stringify(merged));
+      }
+    }
+
     setCategories(getLocal('neeshi_categories', INITIAL_CATEGORIES));
-    setOrders(getLocal('neeshi_orders', INITIAL_ORDERS));
     setCustomOrders(getLocal('neeshi_custom_orders', INITIAL_CUSTOM_ORDERS));
     setReviews(getLocal('neeshi_reviews', INITIAL_REVIEWS));
     setCoupons(getLocal('neeshi_coupons', INITIAL_COUPONS));
@@ -183,31 +224,80 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     syncLocal('neeshi_categories', updated);
   };
 
-  // Order Actions
-  const placeOrder = (newOrder: Omit<Order, 'id' | 'created_at'>) => {
-    const orderId = `ORD-${Math.floor(1000 + Math.random() * 9000)}`;
-    const o: Order = {
-      ...newOrder,
-      id: orderId,
-      created_at: new Date().toISOString(),
-    };
-    
-    const updatedOrders = [o, ...orders];
-    setOrders(updatedOrders);
-    syncLocal('neeshi_orders', updatedOrders);
-    return o;
+  // Order Actions — orders live on the server so prices and status transitions
+  // can never be edited from the browser.
+  const refreshOrders = async () => {
+    try {
+      setLoadingOrders(true);
+      const res = await fetch('/api/orders');
+      const data = await res.json();
+      setOrders(res.ok && data.success ? data.orders : []);
+    } catch (err) {
+      console.error('Failed to load orders:', err);
+      setOrders([]);
+    } finally {
+      setLoadingOrders(false);
+    }
   };
 
-  const updateOrderStatus = (id: string, status: Order['order_status']) => {
-    const updated = orders.map((o) => (o.id === id ? { ...o, order_status: status } : o));
-    setOrders(updated);
-    syncLocal('neeshi_orders', updated);
+  // Reload whenever the signed-in account changes, so a customer never sees
+  // orders left over from a previous session.
+  useEffect(() => {
+    if (loadingAuth) return;
+    if (!user) {
+      setOrders([]);
+      setLoadingOrders(false);
+      return;
+    }
+    refreshOrders();
+  }, [user?.email, loadingAuth]);
+
+  const placeOrder = async (input: PlaceOrderInput): Promise<OrderMutationResult> => {
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        return { success: false, message: data.message || 'We could not create your order.' };
+      }
+
+      setOrders((prev) =>
+        prev.some((o) => o.id === data.order.id) ? prev : [data.order, ...prev]
+      );
+      return { success: true, order: data.order };
+    } catch (err) {
+      console.error('Failed to place order:', err);
+      return { success: false, message: 'We could not reach the server. Please try again.' };
+    }
   };
 
-  const updateOrderPaymentStatus = (id: string, status: Order['payment_status']) => {
-    const updated = orders.map((o) => (o.id === id ? { ...o, payment_status: status } : o));
-    setOrders(updated);
-    syncLocal('neeshi_orders', updated);
+  const runOrderAction = async (
+    id: string,
+    action: AdminOrderAction,
+    payload: Record<string, unknown> = {}
+  ): Promise<OrderMutationResult> => {
+    try {
+      const res = await fetch(`/api/orders/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, ...payload }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        return { success: false, message: data.message || 'That update could not be saved.' };
+      }
+
+      setOrders((prev) => prev.map((o) => (o.id === data.order.id ? data.order : o)));
+      return { success: true, order: data.order };
+    } catch (err) {
+      console.error('Failed to update order:', err);
+      return { success: false, message: 'We could not reach the server. Please try again.' };
+    }
   };
 
   // Custom Order Actions
@@ -296,9 +386,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         addCategory,
         updateCategory,
         deleteCategory,
+        loadingOrders,
+        refreshOrders,
         placeOrder,
-        updateOrderStatus,
-        updateOrderPaymentStatus,
+        runOrderAction,
         submitCustomOrder,
         updateCustomOrderStatus,
         submitReview,

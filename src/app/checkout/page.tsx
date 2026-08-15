@@ -1,19 +1,19 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
-import { ShieldCheck, Truck, CreditCard, Landmark, Check, AlertTriangle, ArrowRight, Loader2 } from 'lucide-react';
+import { Truck, MessageCircle, AlertTriangle, ArrowRight, Loader2, Heart } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { useStore } from '@/context/StoreContext';
+import { BRAND_CONFIG } from '@/config/brand';
 import AnnouncementBar from '@/components/AnnouncementBar';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 
 export default function Checkout() {
   const router = useRouter();
-  const { cartItems, subtotal, shipping, couponDiscount, total, clearCart } = useCart();
-  const { products, placeOrder } = useStore();
+  const { cartItems, subtotal, shipping, couponCode, couponDiscount, total, clearCart } = useCart();
+  const { products, placeOrder, user } = useStore();
 
   // Form input states
   const [fullName, setFullName] = useState('');
@@ -23,116 +23,85 @@ export default function Checkout() {
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [pincode, setPincode] = useState('');
-  const [country, setCountry] = useState('India');
+  const [country] = useState('India');
   const [notes, setNotes] = useState('');
-  
-  // Payment state
-  const [paymentMethod, setPaymentMethod] = useState<'razorpay' | 'cod'>('razorpay');
 
-  // Checkout modal processing states
-  const [processing, setProcessing] = useState(false);
-  const [showMockGateway, setShowMockGateway] = useState(false);
-  const [gatewayStatus, setGatewayStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle');
+  const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  // A single key per checkout attempt. If the customer double-clicks or the
+  // network retries, the server returns the order it already created instead
+  // of making a second one.
+  const idempotencyKey = useRef(
+    `chk-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  );
+  const inFlight = useRef(false);
+
+  const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (inFlight.current) return;
 
-    // Verify availability status of all items
-    const hasUnavailableItems = cartItems.some(item => {
-      const prod = products.find(p => p.id === item.productId);
-      return !prod || prod.availability_status !== 'available';
-    });
-    if (hasUnavailableItems) {
-      alert('Some items in your cart are currently unavailable. Please return to the basket and remove them.');
+    setErrorMessage('');
+
+    if (cartItems.length === 0) {
+      setErrorMessage('Your basket is empty. Please add something lovely before placing an order.');
       return;
     }
 
-    if (!fullName.trim() || !email.trim() || !phone.trim() || !address.trim() || !city.trim() || !pincode.trim()) {
-      alert('Please fill in all required shipping fields.');
+    const unavailable = cartItems.find((item) => {
+      const product = products.find((p) => p.id === item.productId);
+      return !product || product.availability_status !== 'available' || product.status !== 'active';
+    });
+    if (unavailable) {
+      setErrorMessage(
+        `${unavailable.name} is currently unavailable. Please return to your basket and remove it.`
+      );
       return;
     }
 
-    if (paymentMethod === 'cod') {
-      // Direct placement for COD
-      processOrderPlacement('pending');
-    } else {
-      // Open Mock Razorpay Gateway
-      setShowMockGateway(true);
-      setGatewayStatus('processing');
-      setTimeout(() => {
-        setGatewayStatus('idle'); // prompt user input inside the gateway
-      }, 1000);
+    if (!fullName.trim() || !email.trim() || !phone.trim() || !address.trim() || !city.trim() || !state.trim() || !pincode.trim()) {
+      setErrorMessage('Please fill in all required delivery fields.');
+      return;
     }
-  };
 
-  const processOrderPlacement = (paymentStatus: 'pending' | 'paid') => {
-    setProcessing(true);
-    
-    const orderItems = cartItems.map((item) => ({
-      productId: item.productId,
-      name: item.name,
-      quantity: item.quantity,
-      price: item.price,
-      image: item.image,
-      customization: item.customization,
-    }));
+    inFlight.current = true;
+    setSubmitting(true);
 
-    const shippingAddress = {
-      fullName: fullName.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      address: address.trim(),
-      city: city.trim(),
-      state: state.trim() || 'N/A',
-      pincode: pincode.trim(),
-      country,
-    };
-
-    // Place order in StoreContext
-    const placed = placeOrder({
-      customer_id: 'guest',
-      items: orderItems,
-      subtotal,
-      shipping,
-      discount: couponDiscount,
-      total,
-      payment_status: paymentStatus,
-      order_status: 'pending',
-      shipping_address: shippingAddress,
-      notes: notes.trim() || undefined,
+    // Only ids, quantities and customizations are sent — the server looks up
+    // every price itself.
+    const result = await placeOrder({
+      items: cartItems.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        customization: item.customization,
+      })),
+      shipping_address: {
+        fullName: fullName.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        address: address.trim(),
+        city: city.trim(),
+        state: state.trim(),
+        pincode: pincode.trim(),
+        country,
+      },
+      customer_notes: notes.trim() || undefined,
+      coupon_code: couponCode || undefined,
+      idempotency_key: idempotencyKey.current,
     });
 
-    setTimeout(() => {
-      clearCart();
-      setProcessing(false);
-      router.push(`/order-confirmation?id=${placed.id}`);
-    }, 1200);
+    if (!result.success || !result.order) {
+      inFlight.current = false;
+      setSubmitting(false);
+      setErrorMessage(result.message || 'We could not create your order. Please try again.');
+      return;
+    }
+
+    clearCart();
+    router.push(`/order-received?id=${encodeURIComponent(result.order.id)}`);
   };
 
-  const handleMockPaymentSuccess = () => {
-    setGatewayStatus('processing');
-    setTimeout(() => {
-      setGatewayStatus('success');
-      setTimeout(() => {
-        setShowMockGateway(false);
-        processOrderPlacement('paid');
-      }, 1000);
-    }, 1500);
-  };
-
-  const handleMockPaymentFailure = () => {
-    setGatewayStatus('processing');
-    setTimeout(() => {
-      setGatewayStatus('failed');
-      setTimeout(() => {
-        setGatewayStatus('idle');
-        setErrorMessage('Simulated Card Decline: Payment authorization failed. Please try again or select Cash on Delivery.');
-      }, 1500);
-    }, 1200);
-  };
-
-  if (cartItems.length === 0 && !processing) {
+  if (cartItems.length === 0 && !submitting) {
     return (
       <div className="flex flex-col min-h-screen">
         <AnnouncementBar />
@@ -156,30 +125,30 @@ export default function Checkout() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Announcement Bar */}
       <AnnouncementBar />
-
-      {/* Navbar */}
       <Navbar />
 
-      {/* Checkout Content Layout */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex-grow">
-        <h1 className="font-serif text-3xl font-bold text-brand-cocoa mb-8">
-          Checkout Details
+        <h1 className="font-serif text-3xl font-bold text-brand-cocoa mb-2">
+          Review Your Order
         </h1>
+        <p className="text-sm text-brand-cocoa/70 mb-8 max-w-2xl">
+          Every piece is made to order. Place your order below and we&apos;ll continue on WhatsApp to
+          share the payment details.
+        </p>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-          
+
           {/* Left: Input Forms */}
           <div className="lg:col-span-8">
-            <form onSubmit={handleFormSubmit} className="space-y-8">
-              
+            <form onSubmit={handlePlaceOrder} className="space-y-8">
+
               {/* Step 1: Customer Details */}
               <div className="border border-brand-beige rounded-lg bg-brand-offwhite p-6 shadow-sm space-y-4">
                 <h2 className="font-serif text-lg font-bold text-brand-cocoa border-b border-brand-beige/50 pb-2">
                   1. Contact Information
                 </h2>
-                
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="block text-xs font-bold text-brand-cocoa uppercase tracking-wider">Full Name *</label>
@@ -188,8 +157,8 @@ export default function Checkout() {
                       required
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
-                      placeholder="e.g. Sagar Patidar"
-                      className="w-full bg-brand-cream border border-brand-beige rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa"
+                      placeholder="Your Name"
+                      className="w-full bg-brand-cream border border-brand-beige rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa placeholder-brand-cocoa/40"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -199,12 +168,12 @@ export default function Checkout() {
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="e.g. sagar@example.com"
-                      className="w-full bg-brand-cream border border-brand-beige rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa"
+                      placeholder="you@example.com"
+                      className="w-full bg-brand-cream border border-brand-beige rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa placeholder-brand-cocoa/40"
                     />
                   </div>
                 </div>
-                
+
                 <div className="space-y-1.5">
                   <label className="block text-xs font-bold text-brand-cocoa uppercase tracking-wider">Phone Number *</label>
                   <input
@@ -212,9 +181,12 @@ export default function Checkout() {
                     required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="e.g. +91 98765 43210"
-                    className="w-full bg-brand-cream border border-brand-beige rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa"
+                    placeholder="Your Phone Number"
+                    className="w-full bg-brand-cream border border-brand-beige rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa placeholder-brand-cocoa/40"
                   />
+                  <p className="text-[10px] text-brand-cocoa/55">
+                    We&apos;ll use this number to reach you on WhatsApp about your order.
+                  </p>
                 </div>
               </div>
 
@@ -224,7 +196,7 @@ export default function Checkout() {
                   <Truck size={18} className="text-brand-rose" />
                   <span>2. Delivery Address</span>
                 </h2>
-                
+
                 <div className="space-y-1.5">
                   <label className="block text-xs font-bold text-brand-cocoa uppercase tracking-wider">Street Address *</label>
                   <input
@@ -232,8 +204,8 @@ export default function Checkout() {
                     required
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
-                    placeholder="Flat/House No, Colony/Area, Landmark"
-                    className="w-full bg-brand-cream border border-brand-beige rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa"
+                    placeholder="Your delivery address"
+                    className="w-full bg-brand-cream border border-brand-beige rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa placeholder-brand-cocoa/40"
                   />
                 </div>
 
@@ -245,8 +217,8 @@ export default function Checkout() {
                       required
                       value={city}
                       onChange={(e) => setCity(e.target.value)}
-                      placeholder="e.g. Bengaluru"
-                      className="w-full bg-brand-cream border border-brand-beige rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa"
+                      placeholder="Your city"
+                      className="w-full bg-brand-cream border border-brand-beige rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa placeholder-brand-cocoa/40"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -256,8 +228,8 @@ export default function Checkout() {
                       required
                       value={state}
                       onChange={(e) => setState(e.target.value)}
-                      placeholder="e.g. Karnataka"
-                      className="w-full bg-brand-cream border border-brand-beige rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa"
+                      placeholder="Your state"
+                      className="w-full bg-brand-cream border border-brand-beige rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa placeholder-brand-cocoa/40"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -265,10 +237,11 @@ export default function Checkout() {
                     <input
                       type="text"
                       required
+                      inputMode="numeric"
                       value={pincode}
                       onChange={(e) => setPincode(e.target.value)}
-                      placeholder="e.g. 560102"
-                      className="w-full bg-brand-cream border border-brand-beige rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa"
+                      placeholder="Your pincode"
+                      className="w-full bg-brand-cream border border-brand-beige rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa placeholder-brand-cocoa/40"
                     />
                   </div>
                 </div>
@@ -283,119 +256,81 @@ export default function Checkout() {
                   />
                 </div>
 
-                {/* Notes details */}
                 <div className="space-y-1.5 pt-2">
-                  <label className="block text-xs font-bold text-brand-cocoa uppercase tracking-wider">Special Instructions / Gift Message (Optional)</label>
+                  <label className="block text-xs font-bold text-brand-cocoa uppercase tracking-wider">Order Notes (Optional)</label>
                   <textarea
                     rows={2}
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    placeholder="e.g. 'Write happy birthday to Tanu on the tag!' or 'Leave parcel with security.'"
+                    placeholder="Any special instructions?"
                     className="w-full bg-brand-cream border border-brand-beige rounded p-3 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa placeholder-brand-cocoa/40"
                   />
                 </div>
               </div>
 
-              {/* Step 3: Payment Section */}
+              {/* Step 3: How payment works */}
               <div className="border border-brand-beige rounded-lg bg-brand-offwhite p-6 shadow-sm space-y-4">
-                <h2 className="font-serif text-lg font-bold text-brand-cocoa border-b border-brand-beige/50 pb-2">
-                  3. Payment Method
+                <h2 className="font-serif text-lg font-bold text-brand-cocoa border-b border-brand-beige/50 pb-2 flex items-center space-x-2">
+                  <MessageCircle size={18} className="text-brand-rose" />
+                  <span>3. How Payment Works</span>
                 </h2>
 
-                {errorMessage && (
-                  <div className="p-3.5 bg-brand-rose/5 border border-brand-rose/25 rounded flex items-center space-x-2 text-xs text-brand-rose font-semibold">
-                    <AlertTriangle size={16} />
-                    <span>{errorMessage}</span>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  
-                  {/* Razorpay selector */}
-                  <label
-                    className={`border rounded-lg p-4 flex items-start space-x-3 cursor-pointer transition-all ${
-                      paymentMethod === 'razorpay'
-                        ? 'border-brand-rose bg-brand-rose/5'
-                        : 'border-brand-beige bg-brand-cream hover:border-brand-rose/50'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="payment_opt"
-                      checked={paymentMethod === 'razorpay'}
-                      onChange={() => setPaymentMethod('razorpay')}
-                      className="accent-brand-rose mt-1"
-                    />
-                    <div className="space-y-1">
-                      <span className="font-serif text-sm font-bold text-brand-cocoa flex items-center space-x-1.5">
-                        <CreditCard size={15} />
-                        <span>Razorpay Secure Gateway</span>
-                      </span>
-                      <span className="text-[10px] text-brand-cocoa/70 block">
-                        Supports Cards, UPI, Net Banking, and GPay
-                      </span>
-                    </div>
-                  </label>
-
-                  {/* Cash on Delivery selector */}
-                  <label
-                    className={`border rounded-lg p-4 flex items-start space-x-3 cursor-pointer transition-all ${
-                      paymentMethod === 'cod'
-                        ? 'border-brand-rose bg-brand-rose/5'
-                        : 'border-brand-beige bg-brand-cream hover:border-brand-rose/50'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="payment_opt"
-                      checked={paymentMethod === 'cod'}
-                      onChange={() => setPaymentMethod('cod')}
-                      className="accent-brand-rose mt-1"
-                    />
-                    <div className="space-y-1">
-                      <span className="font-serif text-sm font-bold text-brand-cocoa flex items-center space-x-1.5">
-                        <Landmark size={15} />
-                        <span>Cash on Delivery</span>
-                      </span>
-                      <span className="text-[10px] text-brand-cocoa/70 block">
-                        Pay in cash upon doorstep package delivery
-                      </span>
-                    </div>
-                  </label>
+                <div className="bg-brand-rose/5 border border-brand-rose/20 rounded p-4 space-y-3 text-xs leading-relaxed text-brand-cocoa/85">
+                  <p className="font-semibold text-brand-cocoa">
+                    Neeshiartique collects payment personally over WhatsApp — no card details are
+                    ever entered on this website.
+                  </p>
+                  <ol className="space-y-1.5 list-decimal list-inside">
+                    <li>You place your order here and we create it right away.</li>
+                    <li>WhatsApp opens with your order details ready to send to {BRAND_CONFIG.phoneFormatted}.</li>
+                    <li>Neeshiartique shares a UPI/QR for the exact amount.</li>
+                    <li>Once your payment is received and verified, your order is confirmed.</li>
+                  </ol>
                 </div>
               </div>
 
-              {/* Checkout Trigger CTA */}
-              <div className="pt-2">
+              {errorMessage && (
+                <div className="p-3.5 bg-brand-rose/5 border border-brand-rose/25 rounded flex items-start space-x-2 text-xs text-brand-rose font-semibold">
+                  <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
+
+              {/* Place Order CTA */}
+              <div className="pt-2 space-y-2">
                 <button
                   type="submit"
-                  disabled={processing}
-                  className="w-full bg-brand-rose hover:bg-brand-cocoa text-brand-cream transition-colors font-bold text-sm py-4 px-6 rounded flex items-center justify-center space-x-2 shadow-sm"
+                  disabled={submitting}
+                  className="w-full bg-brand-rose hover:bg-brand-cocoa disabled:opacity-70 disabled:cursor-not-allowed text-brand-cream transition-colors font-bold text-sm py-4 px-6 rounded flex items-center justify-center space-x-2 shadow-sm"
                 >
-                  {processing ? (
+                  {submitting ? (
                     <>
                       <Loader2 className="animate-spin" size={16} />
-                      <span>Creating Order...</span>
+                      <span>Creating Your Order...</span>
                     </>
                   ) : (
                     <>
-                      <span>{paymentMethod === 'cod' ? 'Confirm Cash Order' : 'Proceed to Razorpay'}</span>
+                      <span>Place Order &amp; Continue</span>
                       <ArrowRight size={16} />
                     </>
                   )}
                 </button>
+                <p className="text-[10px] text-center text-brand-cocoa/55">
+                  Placing an order does not charge you. Your order is confirmed only after
+                  Neeshiartique receives and verifies your payment.
+                </p>
               </div>
 
             </form>
           </div>
 
-          {/* Right: Checkout summary card */}
+          {/* Right: Order summary card */}
           <div className="lg:col-span-4 space-y-6">
             <div className="border border-brand-beige rounded-lg bg-brand-offwhite p-5 sm:p-6 shadow-sm space-y-6">
               <h2 className="font-serif text-lg font-bold text-brand-cocoa border-b border-brand-beige/50 pb-2">
                 In Your Basket
               </h2>
-              
+
               <div className="divide-y divide-brand-beige/20 text-xs">
                 {cartItems.map((item, idx) => (
                   <div key={idx} className="flex justify-between py-3">
@@ -429,107 +364,33 @@ export default function Checkout() {
                   </div>
                 )}
                 <div className="border-t border-brand-beige/40 pt-2 flex justify-between text-sm font-bold text-brand-cocoa">
-                  <span>Grand Total</span>
+                  <span>Amount Payable</span>
                   <span>₹{total}</span>
                 </div>
+                <p className="text-[10px] font-medium text-brand-cocoa/55 pt-1">
+                  Final amount is confirmed by Neeshiartique on WhatsApp before you pay.
+                </p>
               </div>
             </div>
 
-            <div className="border border-brand-beige rounded-lg p-4 bg-brand-beige/10 flex items-center space-x-2 text-[10px] font-semibold text-brand-cocoa/75 uppercase tracking-wide">
-              <ShieldCheck size={18} className="text-brand-sage flex-shrink-0" />
-              <span>Payments are encrypted & fully secured</span>
+            <div className="border border-brand-beige rounded-lg p-4 bg-brand-sage/5 flex items-start space-x-2.5 text-[11px] font-medium text-brand-cocoa/80 leading-relaxed">
+              <Heart size={16} className="text-brand-rose flex-shrink-0 mt-0.5" />
+              <span>
+                Every Neeshiartique piece is <strong className="font-bold">made to order</strong>,
+                stitched by hand once your payment is verified.
+              </span>
             </div>
+
+            {user && (
+              <p className="text-[10px] text-center text-brand-cocoa/50">
+                Placing this order as {user.email}
+              </p>
+            )}
           </div>
 
         </div>
       </main>
 
-      {/* Footer */}
-      <Footer />
-
-      {/* 31. Razorpay Sandbox Mock Gateway Modal */}
-      {showMockGateway && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
-          {/* Backdrop */}
-          <div className="fixed inset-0 bg-brand-cocoa/40 backdrop-blur-sm" />
-
-          {/* Gateway window */}
-          <div className="relative bg-[#0F172A] text-slate-100 w-full max-w-md rounded-lg shadow-2xl overflow-hidden border border-slate-700 z-10 p-6 flex flex-col justify-between animate-slide-up">
-            
-            {/* Gateway LogoHeader */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-6">
-              <div className="flex items-center space-x-1.5">
-                <span className="font-sans font-bold text-sky-400 tracking-wider text-sm">RAZORPAY</span>
-                <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono">SANDBOX GATEWAY</span>
-              </div>
-              <button
-                onClick={() => {
-                  setShowMockGateway(false);
-                  setGatewayStatus('idle');
-                }}
-                className="text-slate-400 hover:text-slate-200 text-xs"
-              >
-                Cancel
-              </button>
-            </div>
-
-            {/* Gateway state details */}
-            {gatewayStatus === 'processing' ? (
-              <div className="flex flex-col items-center justify-center py-10 space-y-4">
-                <Loader2 className="animate-spin text-sky-400" size={32} />
-                <p className="text-sm font-semibold tracking-wide text-slate-300">Authorizing Secure Payment Transaction...</p>
-              </div>
-            ) : gatewayStatus === 'success' ? (
-              <div className="flex flex-col items-center justify-center py-10 space-y-3 text-emerald-400">
-                <Check className="border-2 border-emerald-400 p-1.5 rounded-full" size={48} strokeWidth={2.5} />
-                <p className="text-sm font-bold tracking-wider">Payment Authorized Successfully!</p>
-              </div>
-            ) : gatewayStatus === 'failed' ? (
-              <div className="flex flex-col items-center justify-center py-10 space-y-3 text-rose-500">
-                <AlertTriangle className="border-2 border-rose-500 p-1.5 rounded-full" size={48} strokeWidth={2.5} />
-                <p className="text-sm font-bold tracking-wider">Transaction Declined</p>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                
-                {/* Billing Summary */}
-                <div className="bg-slate-900 border border-slate-800 rounded p-4 flex justify-between items-center">
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold tracking-wider uppercase block">Merchant</span>
-                    <span className="text-sm font-bold text-slate-200 font-serif">Neeshiartique Store</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[10px] text-slate-400 font-bold tracking-wider uppercase block">Amount</span>
-                    <span className="text-base font-bold text-sky-400">₹{total}</span>
-                  </div>
-                </div>
-
-                <div className="space-y-3 text-xs leading-relaxed text-slate-400">
-                  <p>
-                    This is a <strong className="text-slate-200 font-bold">Mock payment portal</strong> simulating a real API response. Choose an option below to authorize or reject this card purchase.
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-2 pt-2">
-                  <button
-                    onClick={handleMockPaymentSuccess}
-                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm py-3 rounded shadow transition-colors"
-                  >
-                    Simulate Payment Success (Paid)
-                  </button>
-                  <button
-                    onClick={handleMockPaymentFailure}
-                    className="w-full bg-rose-700 hover:bg-rose-600 text-white font-bold text-sm py-3 rounded shadow transition-colors"
-                  >
-                    Simulate Card Decline (Declined)
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      {/* Footer */}
       <Footer />
     </div>
   );

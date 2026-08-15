@@ -591,7 +591,7 @@ export default function ProductDetails({ params }: PageProps) {
                       type="text"
                       value={reviewName}
                       onChange={(e) => setReviewName(e.target.value)}
-                      placeholder="e.g. Shruti P."
+                      placeholder="Your Name"
                       required
                       className="w-full bg-brand-cream border border-brand-beige text-brand-cocoa text-sm rounded px-3.5 py-2.5 focus:outline-none focus:border-brand-rose"
                     />

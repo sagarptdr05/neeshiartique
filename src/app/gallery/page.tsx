@@ -104,7 +104,6 @@ export default function Gallery() {
       description: 'Writing personalized cardboard labels and gift letters for customized crochet packages.',
       section: 'gifting',
     },
-    // Recently Created
     {
       id: 11,
       src: '/images/flower_bookmark.jpg',
@@ -117,6 +116,41 @@ export default function Gallery() {
       src: '/images/custom_gift.jpg',
       title: 'Custom Bridesmaid Gift Bundle',
       description: 'Customized keychain and bookmark matching box sets recently dispatched.',
+      section: 'recent',
+    },
+    {
+      id: 13,
+      src: '/images/pink_flower.png',
+      title: 'Crochet Pink Blossom Hairclip',
+      description: 'Close-up of a hand-crafted gradient pink flower hairclip with a delicate pearl core.',
+      section: 'details',
+    },
+    {
+      id: 14,
+      src: '/images/damru_keychain.jpg',
+      title: 'Festive Crochet Damru Keychain',
+      description: 'Spiritual brown and white damru keychain decorated with brass bells, made for Sawan.',
+      section: 'world',
+    },
+    {
+      id: 15,
+      src: '/images/red_bow_clips.jpg',
+      title: 'Red Crochet Bow Clips',
+      description: 'Set of two deep red crochet hair clips decorated with sweet contrast pink bows.',
+      section: 'world',
+    },
+    {
+      id: 16,
+      src: '/images/pink_bouquet.png',
+      title: 'Crochet Mini Rose Bouquet',
+      description: 'A tiny, hand-knitted bouquet of red and pink roses wrapped in a cone and tied with a red ribbon.',
+      section: 'gifting',
+    },
+    {
+      id: 17,
+      src: '/images/letter_s_keychain.png',
+      title: 'Custom Alphabet "S" Keychain',
+      description: 'Custom ordered letter keychain in deep blue, featuring a matching crochet crown and small pearls.',
       section: 'recent',
     },
   ];

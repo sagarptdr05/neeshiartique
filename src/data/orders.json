@@ -1,0 +1,38 @@
+[
+  {
+    "id": "NA-2026-00001",
+    "customer_id": "sagar@example.com",
+    "items": [
+      {
+        "productId": "prod-1",
+        "name": "Crochet Butterfly Keychain",
+        "quantity": 1,
+        "price": 249,
+        "image": "/images/butterfly_keychain.jpg",
+        "customization": "Dusty Pink & White"
+      }
+    ],
+    "subtotal": 249,
+    "shipping": 40,
+    "discount": 0,
+    "total": 289,
+    "payment_status": "payment_verified",
+    "order_status": "being_crafted",
+    "shipping_address": {
+      "fullName": "Sagar Patidar",
+      "email": "sagar@example.com",
+      "phone": "9876543210",
+      "address": "Sector 3, HSR Layout",
+      "city": "Bengaluru",
+      "state": "Karnataka",
+      "pincode": "560102",
+      "country": "India"
+    },
+    "customer_notes": "Please wrap it nicely, it is a birthday gift for a friend!",
+    "payment_received_at": "2026-08-14T12:05:00.000Z",
+    "confirmed_at": "2026-08-14T12:20:00.000Z",
+    "crafted_at": "2026-08-15T09:10:00.000Z",
+    "created_at": "2026-08-14T11:20:00.000Z",
+    "updated_at": "2026-08-15T09:10:00.000Z"
+  }
+]

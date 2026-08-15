@@ -150,7 +150,7 @@ export default function CustomOrders() {
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Shruti Patidar"
+                    placeholder="Your Name"
                     className="w-full bg-brand-cream border border-brand-beige rounded-md px-3.5 py-2.5 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa"
                   />
                 </div>
@@ -163,7 +163,7 @@ export default function CustomOrders() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="e.g. shruti@example.com"
+                    placeholder="you@example.com"
                     className="w-full bg-brand-cream border border-brand-beige rounded-md px-3.5 py-2.5 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa"
                   />
                 </div>
@@ -179,7 +179,7 @@ export default function CustomOrders() {
                     required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="e.g. +91 98765 43210"
+                    placeholder="Your Phone Number"
                     className="w-full bg-brand-cream border border-brand-beige rounded-md px-3.5 py-2.5 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa"
                   />
                 </div>

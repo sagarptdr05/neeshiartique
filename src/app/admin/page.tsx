@@ -3,8 +3,15 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useStore } from '@/context/StoreContext';
 import { Product, Order, CustomOrderRequest, Category, Coupon } from '@/data/mockData';
+import {
+  orderStatusLabel,
+  paymentStatusLabel,
+  isRevenueCounted,
+  hasTrackingInfo,
+} from '@/lib/orderStatus';
 import {
   Package,
   ShoppingBag,
@@ -62,8 +69,7 @@ export default function AdminDashboard() {
     addProduct,
     updateProduct,
     deleteProduct,
-    updateOrderStatus,
-    updateOrderPaymentStatus,
+    loadingOrders,
     updateCustomOrderStatus,
     addCoupon,
     toggleCoupon,
@@ -273,11 +279,10 @@ export default function AdminDashboard() {
     setNewCouponMin('');
   };
 
-  // Metrics Calculations (loaded dynamically from database states - Made-to-Order Model)
-  const totalRevenue = orders
-    .filter((o) => o.payment_status === 'paid')
-    .reduce((acc, o) => acc + o.total, 0);
-  const pendingOrdersCount = orders.filter((o) => o.order_status === 'pending').length;
+  // Metrics (Made-to-Order + manual payment model). Revenue only ever counts
+  // orders whose payment the admin has actually verified.
+  const totalRevenue = orders.filter(isRevenueCounted).reduce((acc, o) => acc + o.total, 0);
+  const awaitingPaymentCount = orders.filter((o) => o.payment_status === 'awaiting_payment').length;
   const pendingCraftingCount = orders.filter((o) => o.order_status === 'being_crafted').length;
   const newCustomRequestsCount = customOrders.filter((r) => r.status === 'new').length;
   const unreadMessagesCount = messages.filter((m) => m.status === 'unread').length;
@@ -300,20 +305,6 @@ export default function AdminDashboard() {
     return 'Good evening';
   };
 
-  // Order status code-to-label translation
-  const getOrderStatusLabel = (status: Order['order_status']) => {
-    switch (status) {
-      case 'pending': return 'Order Placed';
-      case 'confirmed': return 'Order Confirmed';
-      case 'being_crafted': return 'Being Crafted';
-      case 'quality_check': return 'Quality Check';
-      case 'packed': return 'Packed';
-      case 'shipped': return 'Shipped';
-      case 'delivered': return 'Delivered';
-      case 'cancelled': return 'Cancelled';
-      default: return status;
-    }
-  };
 
   if (!authorized) {
     return (
@@ -522,8 +513,8 @@ export default function AdminDashboard() {
                 <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-4 shadow-sm flex items-center space-x-3.5">
                   <div className="p-2.5 bg-rose-100 text-rose-700 rounded-full"><AlertTriangle size={18} /></div>
                   <div>
-                    <span className="text-[10px] font-bold text-brand-cocoa/50 uppercase tracking-wider block">Pending Orders</span>
-                    <span className="text-lg font-bold text-brand-cocoa">{pendingOrdersCount}</span>
+                    <span className="text-[10px] font-bold text-brand-cocoa/50 uppercase tracking-wider block">Awaiting Payment</span>
+                    <span className="text-lg font-bold text-brand-cocoa">{awaitingPaymentCount}</span>
                   </div>
                 </div>
                 <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-4 shadow-sm flex items-center space-x-3.5">
@@ -583,14 +574,18 @@ export default function AdminDashboard() {
                         <tbody className="divide-y divide-brand-beige/20 font-medium">
                           {recentOrders.map((o) => (
                             <tr key={o.id} className="hover:bg-brand-beige/5">
-                              <td className="py-2.5 font-serif font-bold text-brand-rose">{o.id}</td>
+                              <td className="py-2.5 font-serif font-bold text-brand-rose">
+                                <Link href={`/admin/orders/${encodeURIComponent(o.id)}`} className="hover:underline">
+                                  {o.id}
+                                </Link>
+                              </td>
                               <td className="py-2.5 text-brand-cocoa">{o.shipping_address.fullName}</td>
                               <td className="py-2.5 font-bold">₹{o.total}</td>
                               <td className="py-2.5">
                                 <span className={`px-2 py-0.5 rounded-sm text-[9px] uppercase font-bold ${
                                   o.order_status === 'delivered' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                                 }`}>
-                                  {getOrderStatusLabel(o.order_status)}
+                                  {orderStatusLabel(o.order_status)}
                                 </span>
                               </td>
                             </tr>
@@ -1017,70 +1012,119 @@ export default function AdminDashboard() {
           {/* TAB: ORDERS */}
           {activeTab === 'orders' && (
             <div className="space-y-6 animate-fade-in">
-              <h3 className="font-serif text-xl font-bold text-brand-cocoa">Manage Customer Orders</h3>
-              
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <h3 className="font-serif text-xl font-bold text-brand-cocoa">Manage Customer Orders</h3>
+                <p className="text-[11px] text-brand-cocoa/60 font-medium">
+                  Open an order to confirm payment, advance crafting, and add tracking.
+                </p>
+              </div>
+
               <div className="bg-brand-offwhite border border-brand-beige rounded-lg overflow-hidden shadow-sm overflow-x-auto">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-brand-beige/35 border-b border-brand-beige/70 text-xs font-bold uppercase tracking-wider text-brand-cocoa/60">
                       <th className="p-4">Order ID</th>
                       <th className="p-4">Customer</th>
-                      <th className="p-4">Items Summary</th>
+                      <th className="p-4">Phone</th>
+                      <th className="p-4">Products</th>
                       <th className="p-4">Total</th>
-                      <th className="p-4">Payment</th>
-                      <th className="p-4">Production Workflow</th>
-                      <th className="p-4">Date</th>
+                      <th className="p-4">Payment Status</th>
+                      <th className="p-4">Order Status</th>
+                      <th className="p-4">Order Date</th>
+                      <th className="p-4">Tracking</th>
+                      <th className="p-4"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-brand-beige/30">
-                    {orders.length === 0 ? (
+                    {loadingOrders ? (
                       <tr>
-                        <td colSpan={7} className="p-8 text-center text-xs text-brand-cocoa/50 italic">
+                        <td colSpan={10} className="p-8 text-center text-xs text-brand-cocoa/50 italic">
+                          <span className="inline-flex items-center gap-2">
+                            <Loader2 className="animate-spin" size={14} /> Loading orders...
+                          </span>
+                        </td>
+                      </tr>
+                    ) : orders.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} className="p-8 text-center text-xs text-brand-cocoa/50 italic">
                           No orders yet.
                         </td>
                       </tr>
                     ) : (
                       orders.map((o) => (
-                        <tr key={o.id} className="hover:bg-brand-beige/10">
-                          <td className="p-4 font-serif font-bold text-brand-cocoa">{o.id}</td>
-                          <td className="p-4 text-xs font-semibold">
-                            <p>{o.shipping_address.fullName}</p>
-                            <p className="text-brand-cocoa/50 font-normal">{o.shipping_address.phone}</p>
-                          </td>
-                          <td className="p-4 text-xs max-w-xs truncate">
-                            {o.items.map(item => `${item.name} x${item.quantity}`).join(', ')}
-                          </td>
-                          <td className="p-4 font-bold">₹{o.total}</td>
-                          <td className="p-4">
-                            <select
-                              value={o.payment_status}
-                              onChange={(e) => updateOrderPaymentStatus(o.id, e.target.value as any)}
-                              className="bg-brand-cream border border-brand-beige text-xs rounded p-1.5 text-brand-cocoa font-medium focus:outline-none"
+                        <tr key={o.id} className="hover:bg-brand-beige/10 align-top">
+                          <td className="p-4 font-serif font-bold text-brand-cocoa whitespace-nowrap">
+                            <Link
+                              href={`/admin/orders/${encodeURIComponent(o.id)}`}
+                              className="text-brand-rose hover:underline"
                             >
-                              <option value="pending">Pending</option>
-                              <option value="paid">Paid</option>
-                              <option value="failed">Failed</option>
-                            </select>
+                              {o.id}
+                            </Link>
+                          </td>
+                          <td className="p-4 text-xs font-semibold">{o.shipping_address.fullName}</td>
+                          <td className="p-4 text-xs text-brand-cocoa/70 whitespace-nowrap">
+                            {o.shipping_address.phone}
+                          </td>
+                          <td className="p-4 text-xs max-w-[16rem]">
+                            {o.items.map((item) => `${item.name} × ${item.quantity}`).join(', ')}
+                          </td>
+                          <td className="p-4 font-bold whitespace-nowrap">₹{o.total}</td>
+                          <td className="p-4">
+                            <span
+                              className={`px-2 py-1 rounded text-[9px] uppercase font-bold whitespace-nowrap ${
+                                o.payment_status === 'payment_verified'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : o.payment_status === 'payment_received'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : o.payment_status === 'payment_issue'
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : o.payment_status === 'refunded'
+                                  ? 'bg-slate-200 text-slate-700'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              {paymentStatusLabel(o.payment_status)}
+                            </span>
                           </td>
                           <td className="p-4">
-                            {/* Updated Made-to-Order Production Workflow Selectors */}
-                            <select
-                              value={o.order_status}
-                              onChange={(e) => updateOrderStatus(o.id, e.target.value as any)}
-                              className="bg-brand-cream border border-brand-beige text-xs rounded p-1.5 text-brand-cocoa font-semibold focus:outline-none focus:border-brand-rose"
+                            <span
+                              className={`px-2 py-1 rounded text-[9px] uppercase font-bold whitespace-nowrap ${
+                                o.order_status === 'delivered'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : o.order_status === 'cancelled'
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : 'bg-brand-beige/60 text-brand-cocoa'
+                              }`}
                             >
-                              <option value="pending">Order Placed</option>
-                              <option value="confirmed">Order Confirmed</option>
-                              <option value="being_crafted">Being Crafted</option>
-                              <option value="quality_check">Quality Check</option>
-                              <option value="packed">Packed</option>
-                              <option value="shipped">Shipped</option>
-                              <option value="delivered">Delivered</option>
-                              <option value="cancelled">Cancelled</option>
-                            </select>
+                              {orderStatusLabel(o.order_status)}
+                            </span>
                           </td>
-                          <td className="p-4 text-xs text-brand-cocoa/60 font-medium">
-                            {new Date(o.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                          <td className="p-4 text-xs text-brand-cocoa/60 font-medium whitespace-nowrap">
+                            {new Date(o.created_at).toLocaleDateString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </td>
+                          <td className="p-4 text-xs">
+                            {hasTrackingInfo(o) ? (
+                              <div className="space-y-0.5">
+                                <span className="block font-semibold text-brand-cocoa">{o.carrier}</span>
+                                <span className="block font-mono text-[10px] text-brand-cocoa/70">
+                                  {o.tracking_number}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-brand-cocoa/40 italic">Not added</span>
+                            )}
+                          </td>
+                          <td className="p-4">
+                            <Link
+                              href={`/admin/orders/${encodeURIComponent(o.id)}`}
+                              className="inline-flex items-center gap-1 border border-brand-beige bg-brand-cream hover:bg-brand-rose hover:text-brand-cream text-brand-cocoa transition-colors font-bold text-[10px] uppercase tracking-wider py-2 px-3 rounded whitespace-nowrap"
+                            >
+                              Manage <ChevronRight size={11} />
+                            </Link>
                           </td>
                         </tr>
                       ))

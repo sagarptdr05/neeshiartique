@@ -16,8 +16,8 @@ export default function Home() {
   const { products, categories } = useStore();
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-  // Filter bestseller products (up to 4 for desktop grid)
-  const bestsellerProducts = products.filter((p) => p.bestseller && p.status === 'active').slice(0, 4);
+  // Filter bestseller products (up to 8 for desktop grid)
+  const bestsellerProducts = products.filter((p) => p.bestseller && p.status === 'active').slice(0, 8);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -95,24 +95,24 @@ export default function Home() {
               <div className="col-span-4 flex flex-col gap-4 justify-between">
                 <div className="relative aspect-square rounded-lg overflow-hidden border border-brand-beige shadow-sm group bg-brand-beige/10">
                   <Image
-                    src="/images/evil_eye_keychain.jpg"
-                    alt="Crochet Evil Eye"
+                    src="/images/pink_flower.png"
+                    alt="Crochet Pink Blossom Hairclip"
                     fill
                     className="object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                 </div>
                 <div className="relative aspect-square rounded-lg overflow-hidden border border-brand-beige shadow-sm group bg-brand-beige/10">
                   <Image
-                    src="/images/flower_bookmark.jpg"
-                    alt="Flower Bookmark"
+                    src="/images/damru_keychain.jpg"
+                    alt="Crochet Damru Keychain"
                     fill
                     className="object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                 </div>
                 <div className="relative aspect-square rounded-lg overflow-hidden border border-brand-beige shadow-sm group bg-brand-beige/10">
                   <Image
-                    src="/images/hair_accessories.jpg"
-                    alt="Hair accessories"
+                    src="/images/red_bow_clips.jpg"
+                    alt="Red Crochet Bow Clips"
                     fill
                     className="object-cover transition-transform duration-500 group-hover:scale-105"
                   />
@@ -230,46 +230,46 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 7. Handmade Story / Why Neeshiartique ("Made Slowly. Made Personally.") */}
+      {/* 7. Meet the Artist Section ("The Hands Behind the Yarn. 🧶") */}
       <section className="py-16 sm:py-20 bg-brand-beige/10 border-t border-b border-brand-beige/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
             
-            {/* Story Image */}
-            <div className="lg:col-span-5 relative aspect-[4/5] rounded-lg overflow-hidden border border-brand-beige shadow-md bg-brand-beige/10">
+            {/* Portrait Image */}
+            <div className="lg:col-span-5 relative aspect-[4/5] rounded-lg overflow-hidden border border-brand-beige shadow-md bg-brand-beige/10 group">
               <Image
-                src="/images/custom_gift.jpg"
-                alt="Handmade Crafting Process"
+                src="/images/neeshita.jpg"
+                alt="Neeshita - The creator behind Neeshiartique"
                 fill
-                className="object-cover"
+                sizes="(max-width: 768px) 100vw, 33vw"
+                className="object-cover transition-transform duration-500 group-hover:scale-105"
               />
+              <div className="absolute bottom-4 right-4 bg-brand-cream/90 border border-brand-beige px-4 py-2 rounded text-xs font-bold font-serif text-brand-cocoa shadow-sm">
+                Neeshita • Founder & Artist
+              </div>
             </div>
 
-            {/* Story Text */}
+            {/* Meet text */}
             <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
               <span className="text-xs font-bold text-brand-rose tracking-widest uppercase">
-                Our Philosophy
+                Meet the Creator
               </span>
               <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold text-brand-cocoa leading-tight">
-                Made Slowly. Made Personally.
+                The Hands Behind the Yarn. 🧶
               </h2>
               <div className="w-16 h-[1.5px] bg-brand-rose mx-auto lg:mx-0" />
               
-              <div className="space-y-4 text-brand-cocoa/85 text-sm sm:text-base leading-relaxed">
-                <p>
-                  Every Neeshiartique creation is made with patience, creativity, and a personal touch. From a tiny crochet flower to a fully customized gift, every single loop and stitch is made to feel special.
-                </p>
-                <p>
-                  We don't believe in mass production. Our creations are made in small batches or crafted-to-order, ensuring that we pay attention to detail, maintain high standards, and put a little bit of warmth and heartbeat into every package.
-                </p>
-              </div>
+              <p className="text-brand-cocoa/85 text-sm sm:text-base leading-relaxed">
+                Meet Neeshita, the creator behind Neeshiartique. What started with a childhood love for art slowly grew into a love for crochet during her second year of engineering — eventually turning into a little world of handmade creations.
+              </p>
 
-              <div className="pt-4 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
+              <div className="pt-4">
                 <Link
-                  href="/about"
-                  className="text-sm font-bold text-brand-cocoa hover:text-brand-rose border-b border-brand-cocoa hover:border-brand-rose pb-1 transition-all duration-200"
+                  href="/artist"
+                  className="inline-flex items-center space-x-1.5 text-sm font-bold text-brand-cocoa hover:text-brand-rose transition-colors"
                 >
-                  Read Our Full Story
+                  <span>Meet Neeshita</span>
+                  <ArrowRight size={14} />
                 </Link>
               </div>
             </div>
@@ -320,12 +320,12 @@ export default function Home() {
           {/* Collage Images */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
             {[
-              '/images/butterfly_keychain.jpg',
-              '/images/evil_eye_keychain.jpg',
-              '/images/flower_bookmark.jpg',
-              '/images/hair_accessories.jpg',
-              '/images/flower_bookmark.jpg',
-              '/images/custom_gift.jpg'
+              '/images/pink_flower.png',
+              '/images/damru_keychain.jpg',
+              '/images/red_bow_clips.jpg',
+              '/images/pink_bouquet.png',
+              '/images/letter_s_keychain.png',
+              '/images/butterfly_keychain.jpg'
             ].map((imgSrc, i) => (
               <a
                 key={i}

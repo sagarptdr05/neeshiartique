@@ -4,12 +4,14 @@ import React, { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Lock, Mail, ArrowRight, Loader2 } from 'lucide-react';
+import { useStore } from '@/context/StoreContext';
 import AnnouncementBar from '@/components/AnnouncementBar';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 
 function LoginForm() {
   const router = useRouter();
+  const { checkSession } = useStore();
   const searchParams = useSearchParams();
   const redirectUrl = searchParams.get('redirect') || '/account';
 
@@ -33,11 +35,10 @@ function LoginForm() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        if (data.role === 'admin') {
-          router.push('/admin');
-        } else {
-          router.push(redirectUrl);
-        }
+        // Refresh the shared session before navigating, otherwise the next page
+        // still sees the signed-out state from before this login.
+        await checkSession();
+        router.push(data.role === 'admin' ? '/admin' : redirectUrl);
       } else {
         setErrorMsg(data.message || 'Invalid email or password. Please try again.');
         setLoading(false);
@@ -80,7 +81,7 @@ function LoginForm() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@example.com"
+                placeholder="you@example.com"
                 className="w-full bg-brand-cream border border-brand-beige rounded pl-10 pr-3 py-3 text-sm focus:outline-none focus:border-brand-rose font-medium normal-case text-brand-cocoa"
               />
             </div>

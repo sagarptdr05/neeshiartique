@@ -62,6 +62,29 @@ export interface ShippingAddress {
   country: string;
 }
 
+/**
+ * Payment lifecycle. Payment is collected manually over WhatsApp/UPI, so the
+ * admin is the only one who may ever move an order out of `awaiting_payment`.
+ */
+export type PaymentStatus =
+  | 'awaiting_payment'
+  | 'payment_received'
+  | 'payment_verified'
+  | 'payment_issue'
+  | 'refunded';
+
+/** Made-to-order fulfilment lifecycle, kept separate from payment state. */
+export type OrderStatus =
+  | 'pending_payment'
+  | 'payment_received'
+  | 'confirmed'
+  | 'being_crafted'
+  | 'quality_check'
+  | 'packed'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled';
+
 export interface Order {
   id: string;
   customer_id: string;
@@ -70,11 +93,31 @@ export interface Order {
   shipping: number;
   discount: number;
   total: number;
-  payment_status: 'pending' | 'paid' | 'failed' | 'refunded';
-  order_status: 'pending' | 'confirmed' | 'being_crafted' | 'quality_check' | 'packed' | 'shipped' | 'delivered' | 'cancelled';
+  payment_status: PaymentStatus;
+  order_status: OrderStatus;
   shipping_address: ShippingAddress;
-  notes?: string;
+  customer_notes?: string;
+
+  // Lifecycle timestamps, each written once the admin advances that stage.
+  payment_received_at?: string;
+  confirmed_at?: string;
+  crafted_at?: string;
+  quality_checked_at?: string;
+  packed_at?: string;
+  shipped_at?: string;
+  delivered_at?: string;
+  cancelled_at?: string;
+
+  // Shipping details, added by the admin after the parcel is handed over.
+  carrier?: string;
+  tracking_number?: string;
+  shipping_date?: string;
+  tracking_url?: string;
+
+  /** Guards against a double-submitted checkout creating two orders. */
+  idempotency_key?: string;
   created_at: string;
+  updated_at: string;
 }
 
 export interface CustomOrderRequest {
@@ -313,6 +356,145 @@ export const INITIAL_PRODUCTS: Product[] = [
     status: 'active',
     created_at: '2026-08-06T14:30:00Z',
   },
+  {
+    id: 'prod-7',
+    name: 'Crochet Pink Blossom Hairclip',
+    slug: 'crochet-pink-blossom-hairclip',
+    short_description: 'A beautifully hand-crafted pink flower hair clip featuring a delicate pearl centerpiece and soft gradient petals.',
+    description: 'Add a soft, romantic touch to your hair or outfit with this stunning hand-crafted pink blossom. Stitched using premium gradient pink and white cotton yarn, it features a shiny faux pearl centerpiece. Securely mounted on a high-quality metal clip, it stays in place comfortably all day. Perfect for casual wear, picnics, or gifting to someone special.',
+    price: 159,
+    category_id: 'accessories',
+    stock: 15,
+    availability_status: 'available',
+    made_to_order: true,
+    sku: 'HA-PINKFLOWER-01',
+    images: ['/images/pink_flower.png'],
+    materials: ['Premium Cotton Yarn', 'Faux Pearl Bead', 'Metal Hair Clip', 'Hot Glue'],
+    care_instructions: [
+      'Avoid contact with water to protect the metal clip.',
+      'Spot clean the petals gently if needed.'
+    ],
+    customization_available: true,
+    personalization_options: ['Soft Pink (Default)', 'Peach Orange', 'Lavender Purple', 'Creamy White'],
+    preparation_time: '2 days',
+    shipping_time: '3-5 days',
+    featured: true,
+    bestseller: true,
+    new_product: true,
+    status: 'active',
+    created_at: '2026-08-15T12:00:00Z',
+  },
+  {
+    id: 'prod-8',
+    name: 'Festive Crochet Damru Keychain',
+    slug: 'festive-crochet-damru-keychain',
+    short_description: 'A beautiful holy-themed brown and white crochet Damru keychain with dangling bells, representing peace and positivity.',
+    description: 'Celebrate the divine spirit with this meticulously hand-crafted Damru keychain. Stitched with deep cocoa and cream cotton yarn, it mimics the traditional Shiva Damru structure with white threads and two dangling cords finished with tiny golden brass bells. Perfect as a car rear-view mirror charm, key companion, or a spiritual gift for loved ones during Sawan and festive seasons.',
+    price: 199,
+    category_id: 'keychains',
+    stock: 20,
+    availability_status: 'available',
+    made_to_order: true,
+    sku: 'KC-DAMRU-01',
+    images: ['/images/damru_keychain.jpg'],
+    materials: ['Soft Cotton Yarn', 'Brass Bells', 'Metal Key Ring & Chain', 'Polyester Fiberfill'],
+    care_instructions: [
+      'Spot clean only.',
+      'Keep away from moisture to avoid bell tarnishing.'
+    ],
+    customization_available: false,
+    preparation_time: '2 days',
+    shipping_time: '3-5 days',
+    featured: true,
+    bestseller: true,
+    new_product: true,
+    status: 'active',
+    created_at: '2026-08-15T12:10:00Z',
+  },
+  {
+    id: 'prod-9',
+    name: 'Red Crochet Bow Hair Clips (Set of 2)',
+    slug: 'red-crochet-bow-hair-clips',
+    short_description: 'A charming pair of deep red crochet hair clips adorned with contrast pink bows.',
+    description: 'Brighten up your look with this set of two hand-knitted hair clips. Crafted from vibrant red cotton yarn, each oval-shaped clip is decorated with a sweet, contrast baby pink crochet bow. Sturdy metal alligator clips on the back ensure a secure hold. Ideal for adding a touch of vintage and handmade warmth to any outfit.',
+    price: 139,
+    category_id: 'accessories',
+    stock: 18,
+    availability_status: 'available',
+    made_to_order: true,
+    sku: 'HA-REDBOW-01',
+    images: ['/images/red_bow_clips.jpg'],
+    materials: ['Vibrant Cotton Yarn', 'Metal Alligator Clips', 'Hot Glue'],
+    care_instructions: [
+      'Keep dry to prevent metal clip rusting.',
+      'Gently brush off dust with a clean, dry cloth.'
+    ],
+    customization_available: true,
+    personalization_options: ['Red with Pink Bows (Default)', 'Pink with White Bows', 'Navy Blue with Red Bows', 'Green with Cream Bows'],
+    preparation_time: '2 days',
+    shipping_time: '3-5 days',
+    featured: false,
+    bestseller: true,
+    new_product: true,
+    status: 'active',
+    created_at: '2026-08-15T12:20:00Z',
+  },
+  {
+    id: 'prod-10',
+    name: 'Crochet Mini Rose Bouquet Keychain',
+    slug: 'crochet-mini-rose-bouquet-keychain',
+    short_description: 'An adorable, hand-knitted mini pink rose bouquet keychain wrapped in a pink cone and tied with a ribbon.',
+    description: 'A bouquet of roses that lasts forever! This sweet keychain features a miniature hand-crocheted bouquet of red and pink roses, neatly wrapped in a pink crochet cone, tied with a delicate red and white striped ribbon. It comes with a sturdy silver key ring, making it a lovely charm for your keys, bag, or a cute valentine/anniversary gift.',
+    price: 249,
+    category_id: 'keychains',
+    stock: 12,
+    availability_status: 'available',
+    made_to_order: true,
+    sku: 'KC-BOUQUET-01',
+    images: ['/images/pink_bouquet.png'],
+    materials: ['Organic Cotton Yarn', 'Metal Key Ring', 'Striped Ribbon', 'Fiberfill'],
+    care_instructions: [
+      'Spot clean gently with a damp cloth if necessary.',
+      'Do not machine wash or soak.'
+    ],
+    customization_available: true,
+    personalization_options: ['Pink Bouquet (Default)', 'Red Roses Bouquet', 'Yellow Sunflower Bouquet', 'Purple Lavender Bouquet'],
+    preparation_time: '2-3 days',
+    shipping_time: '3-5 days',
+    featured: true,
+    bestseller: true,
+    new_product: true,
+    status: 'active',
+    created_at: '2026-08-15T12:30:00Z',
+  },
+  {
+    id: 'prod-11',
+    name: 'Custom Crochet Letter Keychain',
+    slug: 'custom-crochet-letter-keychain',
+    short_description: 'A personalized, hand-stitched alphabet letter keychain with a cute matching crochet crown.',
+    description: 'Personalize your everyday carry with this custom crochet alphabet keychain! Hand-knitted in your choice of letters, each piece features a contrast white border and is adorned with an adorable miniature blue crown embedded with tiny pearls. Includes a metal key chain and ring, perfect as a thoughtful gift for birthdays, anniversaries, or a treat for yourself.',
+    price: 279,
+    category_id: 'custom-crochet',
+    stock: 25,
+    availability_status: 'available',
+    made_to_order: true,
+    sku: 'KC-CUSTOM-LETTER',
+    images: ['/images/letter_s_keychain.png'],
+    materials: ['High-quality Cotton Yarn', 'Faux Pearls', 'Metal Key Ring & Chain', 'Fiberfill'],
+    care_instructions: [
+      'Spot clean only.',
+      'Avoid contact with water to maintain key ring shine.'
+    ],
+    customization_available: true,
+    personalization_options: ['Letter S (Default)', 'Custom Letter (A-Z) - Specify in notes', 'Color: Deep Blue & Cream (Default)', 'Color: Lavender & White', 'Color: Pastel Pink & White'],
+    preparation_time: '3-4 days',
+    shipping_time: '3-5 days',
+    featured: true,
+    bestseller: true,
+    new_product: true,
+    status: 'active',
+    created_at: '2026-08-15T12:40:00Z',
+  },
 ];
 
 export const INITIAL_REVIEWS: Review[] = [
@@ -351,40 +533,8 @@ export const INITIAL_COUPONS: Coupon[] = [
   { code: 'WELCOME15', type: 'percentage', value: 15, active: true },
 ];
 
-export const INITIAL_ORDERS: Order[] = [
-  {
-    id: 'ORD-9872',
-    customer_id: 'cust-1',
-    items: [
-      {
-        productId: 'prod-1',
-        name: 'Crochet Butterfly Keychain',
-        quantity: 1,
-        price: 249,
-        image: '/images/butterfly_keychain.jpg',
-        customization: 'Dusty Pink & White',
-      },
-    ],
-    subtotal: 249,
-    shipping: 40,
-    discount: 0,
-    total: 289,
-    payment_status: 'paid',
-    order_status: 'being_crafted',
-    shipping_address: {
-      fullName: 'Sagar Patidar',
-      email: 'sagar@example.com',
-      phone: '6388992271',
-      address: 'Sector 3, HSR Layout',
-      city: 'Bengaluru',
-      state: 'Karnataka',
-      pincode: '560102',
-      country: 'India',
-    },
-    notes: 'Please wrap it nicely, it is a birthday gift for a friend!',
-    created_at: '2026-08-14T11:20:00Z',
-  },
-];
+// Orders are no longer seeded here — they live server-side in `src/data/orders.json`
+// and are read/written through `/api/orders` so pricing can be trusted.
 
 export const INITIAL_CUSTOM_ORDERS: CustomOrderRequest[] = [
   {

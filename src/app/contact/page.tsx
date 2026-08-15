@@ -220,7 +220,7 @@ export default function Contact() {
                       required
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="e.g. Yash Patil"
+                      placeholder="Your Name"
                       className="w-full bg-brand-cream border border-brand-beige rounded px-3.5 py-2.5 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa"
                     />
                   </div>
@@ -231,7 +231,7 @@ export default function Contact() {
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="e.g. yash@example.com"
+                      placeholder="you@example.com"
                       className="w-full bg-brand-cream border border-brand-beige rounded px-3.5 py-2.5 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa"
                     />
                   </div>
@@ -244,7 +244,7 @@ export default function Contact() {
                       type="tel"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      placeholder="e.g. +91 99887 76655"
+                      placeholder="Your Phone Number"
                       className="w-full bg-brand-cream border border-brand-beige rounded px-3.5 py-2.5 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa"
                     />
                   </div>

@@ -4,12 +4,14 @@ import React, { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { User, Lock, Mail, Phone, ArrowRight, Loader2 } from 'lucide-react';
+import { useStore } from '@/context/StoreContext';
 import AnnouncementBar from '@/components/AnnouncementBar';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 
 function RegisterForm() {
   const router = useRouter();
+  const { checkSession } = useStore();
   const searchParams = useSearchParams();
   const redirectUrl = searchParams.get('redirect') || '/account';
 
@@ -43,6 +45,8 @@ function RegisterForm() {
       const data = await response.json();
 
       if (response.ok && data.success) {
+        // Pick up the new session before navigating away.
+        await checkSession();
         router.push(redirectUrl);
       } else {
         setErrorMsg(data.message || 'Registration failed. Please try again.');
@@ -86,7 +90,7 @@ function RegisterForm() {
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Sagar Patidar"
+                placeholder="Your Name"
                 className="w-full bg-brand-cream border border-brand-beige rounded pl-10 pr-3 py-3 text-sm focus:outline-none focus:border-brand-rose font-medium normal-case text-brand-cocoa"
               />
             </div>
@@ -101,7 +105,7 @@ function RegisterForm() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@example.com"
+                placeholder="you@example.com"
                 className="w-full bg-brand-cream border border-brand-beige rounded pl-10 pr-3 py-3 text-sm focus:outline-none focus:border-brand-rose font-medium normal-case text-brand-cocoa"
               />
             </div>
@@ -116,7 +120,7 @@ function RegisterForm() {
                 required
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="e.g. 6388992271"
+                placeholder="Your Phone Number"
                 className="w-full bg-brand-cream border border-brand-beige rounded pl-10 pr-3 py-3 text-sm focus:outline-none focus:border-brand-rose font-medium normal-case text-brand-cocoa"
               />
             </div>
@@ -131,7 +135,7 @@ function RegisterForm() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="Create a password"
                 className="w-full bg-brand-cream border border-brand-beige rounded pl-10 pr-3 py-3 text-sm focus:outline-none focus:border-brand-rose font-medium normal-case text-brand-cocoa"
               />
             </div>
@@ -146,7 +150,7 @@ function RegisterForm() {
                 required
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="Confirm your password"
                 className="w-full bg-brand-cream border border-brand-beige rounded pl-10 pr-3 py-3 text-sm focus:outline-none focus:border-brand-rose font-medium normal-case text-brand-cocoa"
               />
             </div>
