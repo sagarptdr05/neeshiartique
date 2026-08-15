@@ -75,7 +75,8 @@ export default function Wishlist() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {savedProducts.map((product) => {
-            const isSoldOut = product.stock === 0;
+            const isUnavailable = product.availability_status === 'temporarily_unavailable';
+            const isSoldOut = isUnavailable;
             const isAdded = !!addedItems[product.id];
 
             return (
@@ -102,9 +103,9 @@ export default function Wishlist() {
                   </button>
 
                   {/* Sold out Badge */}
-                  {isSoldOut && (
-                    <span className="absolute top-3 left-3 text-[9px] font-bold tracking-wider px-2 py-1 bg-brand-cocoa text-brand-cream rounded-sm shadow-sm">
-                      SOLD OUT
+                  {isUnavailable && (
+                    <span className="absolute top-3 left-3 text-[9px] font-bold tracking-wider px-2 py-1 bg-brand-cocoa text-brand-cream/80 rounded-sm shadow-sm uppercase">
+                      Unavailable
                     </span>
                   )}
                 </Link>
@@ -127,12 +128,12 @@ export default function Wishlist() {
 
                   {/* Action add-to-cart buttons */}
                   <div className="flex space-x-2 pt-2 border-t border-brand-beige/40">
-                    {isSoldOut ? (
+                    {isUnavailable ? (
                       <button
                         disabled
-                        className="flex-grow bg-brand-beige text-brand-cocoa/40 font-bold text-xs py-2 rounded cursor-not-allowed border border-brand-beige text-center"
+                        className="flex-grow bg-brand-beige text-brand-cocoa/40 font-bold text-xs py-2 rounded cursor-not-allowed border border-brand-beige text-center uppercase tracking-wider"
                       >
-                        Sold Out
+                        Unavailable
                       </button>
                     ) : (
                       <button

@@ -24,7 +24,8 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
   if (!product) return null;
 
   const isSaved = isInWishlist(product.id);
-  const isSoldOut = product.stock === 0;
+  const isUnavailable = product.availability_status === 'temporarily_unavailable';
+  const isSoldOut = isUnavailable;
 
   // Set default option on render
   if (product.customization_available && product.personalization_options && !selectedCustomization) {
@@ -98,9 +99,9 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
             className="object-cover"
             priority
           />
-          {product.stock === 0 && (
-            <span className="absolute top-4 left-4 bg-brand-cocoa text-brand-cream text-xs font-bold px-2 py-1 rounded shadow-sm">
-              SOLD OUT
+          {isUnavailable && (
+            <span className="absolute top-4 left-4 bg-brand-cocoa text-brand-cream/80 text-xs font-bold px-2 py-1 rounded shadow-sm uppercase tracking-wider">
+              Unavailable
             </span>
           )}
         </div>
@@ -182,13 +183,18 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
 
           {/* Action Row */}
           <div className="flex flex-col sm:flex-row items-stretch gap-3 mt-4">
-            {isSoldOut ? (
-              <button
-                disabled
-                className="flex-grow bg-brand-beige text-brand-cocoa/50 font-semibold text-sm py-3 px-6 rounded cursor-not-allowed text-center border border-brand-beige"
-              >
-                Sold Out
-              </button>
+            {isUnavailable ? (
+              <div className="flex-grow space-y-3">
+                <button
+                  disabled
+                  className="w-full bg-brand-beige text-brand-cocoa/50 font-semibold text-sm py-3 px-6 rounded cursor-not-allowed text-center border border-brand-beige"
+                >
+                  Currently Unavailable
+                </button>
+                <p className="text-[11px] text-brand-rose font-medium text-center">
+                  This crochet piece is temporarily unavailable. Please check back soon or contact us for a custom request.
+                </p>
+              </div>
             ) : (
               <button
                 onClick={handleAddToCart}

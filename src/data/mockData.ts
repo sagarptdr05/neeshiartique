@@ -25,6 +25,8 @@ export interface Product {
   compare_at_price?: number;
   category_id: string;
   stock: number;
+  availability_status: 'available' | 'temporarily_unavailable' | 'discontinued';
+  made_to_order: boolean;
   sku: string;
   images: string[];
   materials: string[];
@@ -69,7 +71,7 @@ export interface Order {
   discount: number;
   total: number;
   payment_status: 'pending' | 'paid' | 'failed' | 'refunded';
-  order_status: 'pending' | 'confirmed' | 'being_crafted' | 'packed' | 'shipped' | 'delivered' | 'cancelled';
+  order_status: 'pending' | 'confirmed' | 'being_crafted' | 'quality_check' | 'packed' | 'shipped' | 'delivered' | 'cancelled';
   shipping_address: ShippingAddress;
   notes?: string;
   created_at: string;
@@ -151,6 +153,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     compare_at_price: 299,
     category_id: 'keychains',
     stock: 12,
+    availability_status: 'available',
+    made_to_order: true,
     sku: 'KC-BUTTERFLY-01',
     images: ['/images/butterfly_keychain.jpg', '/images/evil_eye_keychain.jpg'],
     materials: ['100% Organic Cotton Yarn', 'Metal Key Ring', 'Hypoallergenic Fiberfill'],
@@ -179,6 +183,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     price: 199,
     category_id: 'keychains',
     stock: 18,
+    availability_status: 'available',
+    made_to_order: true,
     sku: 'KC-EVILEYE-01',
     images: ['/images/evil_eye_keychain.jpg', '/images/butterfly_keychain.jpg'],
     materials: ['Organic Cotton Yarn', 'Metal Key Ring', 'Wooden Bead Accent'],
@@ -206,6 +212,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     compare_at_price: 179,
     category_id: 'bookmarks',
     stock: 25,
+    availability_status: 'available',
+    made_to_order: true,
     sku: 'BM-FLOWER-01',
     images: ['/images/flower_bookmark.jpg', '/images/hair_accessories.jpg'],
     materials: ['Soft Cotton Yarn', 'Fabric Stiffener (for leaves)'],
@@ -233,6 +241,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     price: 129,
     category_id: 'accessories',
     stock: 15,
+    availability_status: 'available',
+    made_to_order: true,
     sku: 'HA-BOWS-01',
     images: ['/images/hair_accessories.jpg', '/images/flower_bookmark.jpg'],
     materials: ['Premium Cotton Yarn', 'Alligator Steel Clips', 'Hot Glue Adhesion'],
@@ -259,6 +269,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     price: 299,
     category_id: 'flowers',
     stock: 8,
+    availability_status: 'available',
+    made_to_order: true,
     sku: 'FL-SUNFLOWER-01',
     images: ['/images/flower_bookmark.jpg', '/images/custom_gift.jpg'],
     materials: ['Cotton Threads', 'Fiberfill Stuffing', 'Recycled Cardboard Pot Base'],
@@ -285,6 +297,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     price: 499,
     category_id: 'gifts',
     stock: 10,
+    availability_status: 'available',
+    made_to_order: true,
     sku: 'GB-CUSTOM-01',
     images: ['/images/custom_gift.jpg', '/images/butterfly_keychain.jpg'],
     materials: ['Kraft Cardboard Box', 'Cotton Ribbon Wrapper', 'Dried Flowers', 'Handwritten Cardboard Tag'],

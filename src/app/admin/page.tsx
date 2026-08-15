@@ -1,11 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/context/StoreContext';
 import { Product, Order, CustomOrderRequest, Category, Coupon } from '@/data/mockData';
-import { BRAND_CONFIG } from '@/config/brand';
 import {
   Package,
   ShoppingBag,
@@ -44,7 +43,6 @@ export default function AdminDashboard() {
   const [authorized, setAuthorized] = useState(false);
   const [adminUser, setAdminUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Messages States
   const [messages, setMessages] = useState<any[]>([]);
@@ -127,13 +125,15 @@ export default function AdminDashboard() {
   const [newProdPrice, setNewProdPrice] = useState(0);
   const [newProdCompare, setNewProdCompare] = useState('');
   const [newProdCategory, setNewProdCategory] = useState(categories[0]?.id || 'keychains');
-  const [newProdStock, setNewProdStock] = useState(10);
   const [newProdDesc, setNewProdDesc] = useState('');
   const [newProdImage, setNewProdImage] = useState('/images/butterfly_keychain.jpg');
   const [newProdCustomizable, setNewProdCustomizable] = useState(false);
   const [newProdFeatured, setNewProdFeatured] = useState(false);
   const [newProdBestseller, setNewProdBestseller] = useState(false);
   const [newProdNew, setNewProdNew] = useState(true);
+  const [newProdAvailability, setNewProdAvailability] = useState<'available' | 'temporarily_unavailable' | 'discontinued'>('available');
+  const [newProdMadeToOrder, setNewProdMadeToOrder] = useState(true);
+  const [newProdPrepTime, setNewProdPrepTime] = useState('3–5 days');
 
   // Form states: Editing Product
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -161,7 +161,6 @@ export default function AdminDashboard() {
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          // Update message in state
           setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, status: 'read' } : m));
           setSelectedMessage({ ...msg, status: 'read' });
         }
@@ -222,15 +221,17 @@ export default function AdminDashboard() {
       price: Number(newProdPrice),
       compare_at_price: newProdCompare ? Number(newProdCompare) : undefined,
       category_id: newProdCategory,
-      stock: Number(newProdStock),
+      stock: 99, // Kept internally for backwards compatibility, ignored in UI
+      availability_status: newProdAvailability,
+      made_to_order: newProdMadeToOrder,
       sku: `PROD-${Date.now().toString().slice(-6)}`,
       images: [newProdImage],
-      materials: ['Handmade cotton thread'],
+      materials: ['100% Organic Cotton Yarn'],
       care_instructions: ['Gently spot clean with damp cloth.'],
       customization_available: newProdCustomizable,
       personalization_options: newProdCustomizable ? ['Vibrant Multi-color', 'Soft Pastel Tone'] : undefined,
-      preparation_time: '2-3 days',
-      shipping_time: '3-5 days',
+      preparation_time: newProdPrepTime,
+      shipping_time: '3–5 days',
       featured: newProdFeatured,
       bestseller: newProdBestseller,
       new_product: newProdNew,
@@ -241,9 +242,11 @@ export default function AdminDashboard() {
     setNewProdName('');
     setNewProdPrice(0);
     setNewProdCompare('');
-    setNewProdStock(10);
     setNewProdDesc('');
     setNewProdCustomizable(false);
+    setNewProdAvailability('available');
+    setNewProdMadeToOrder(true);
+    setNewProdPrepTime('3–5 days');
     setShowAddProduct(false);
   };
 
@@ -270,18 +273,20 @@ export default function AdminDashboard() {
     setNewCouponMin('');
   };
 
-  // Metrics Calculations (loaded dynamically from database states)
+  // Metrics Calculations (loaded dynamically from database states - Made-to-Order Model)
   const totalRevenue = orders
     .filter((o) => o.payment_status === 'paid')
     .reduce((acc, o) => acc + o.total, 0);
+  const pendingOrdersCount = orders.filter((o) => o.order_status === 'pending').length;
   const pendingCraftingCount = orders.filter((o) => o.order_status === 'being_crafted').length;
   const newCustomRequestsCount = customOrders.filter((r) => r.status === 'new').length;
   const unreadMessagesCount = messages.filter((m) => m.status === 'unread').length;
+  const activeProductsCount = products.filter(p => p.status === 'active' && p.availability_status !== 'discontinued').length;
 
-  // Inventory Metrics
+  // Products & Production Metrics (Replaced Low Stock / Out of Stock)
   const totalProducts = products.length;
-  const lowStockProducts = products.filter((p) => p.stock > 0 && p.stock < 5).length;
-  const outOfStockProducts = products.filter((p) => p.stock === 0).length;
+  const madeToOrderCount = products.filter((p) => p.made_to_order).length;
+  const temporarilyUnavailableCount = products.filter((p) => p.availability_status === 'temporarily_unavailable').length;
 
   // Recent lists for overview dashboard
   const recentOrders = [...orders].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5);
@@ -293,6 +298,21 @@ export default function AdminDashboard() {
     if (hours < 12) return 'Good morning';
     if (hours < 17) return 'Good afternoon';
     return 'Good evening';
+  };
+
+  // Order status code-to-label translation
+  const getOrderStatusLabel = (status: Order['order_status']) => {
+    switch (status) {
+      case 'pending': return 'Order Placed';
+      case 'confirmed': return 'Order Confirmed';
+      case 'being_crafted': return 'Being Crafted';
+      case 'quality_check': return 'Quality Check';
+      case 'packed': return 'Packed';
+      case 'shipped': return 'Shipped';
+      case 'delivered': return 'Delivered';
+      case 'cancelled': return 'Cancelled';
+      default: return status;
+    }
   };
 
   if (!authorized) {
@@ -341,7 +361,7 @@ export default function AdminDashboard() {
                   Dashboard
                 </span>
                 <button
-                  onClick={() => { setActiveTab('overview'); setMobileMenuOpen(false); }}
+                  onClick={() => setActiveTab('overview')}
                   className={`w-full flex items-center space-x-2.5 py-2 px-3 rounded text-xs font-bold transition-all ${
                     activeTab === 'overview'
                       ? 'bg-brand-rose text-brand-cream shadow-sm'
@@ -359,7 +379,7 @@ export default function AdminDashboard() {
                   Store Management
                 </span>
                 <button
-                  onClick={() => { setActiveTab('products'); setMobileMenuOpen(false); }}
+                  onClick={() => setActiveTab('products')}
                   className={`w-full flex items-center space-x-2.5 py-2 px-3 rounded text-xs font-bold transition-all ${
                     activeTab === 'products'
                       ? 'bg-brand-rose text-brand-cream shadow-sm'
@@ -370,7 +390,7 @@ export default function AdminDashboard() {
                   <span>Products</span>
                 </button>
                 <button
-                  onClick={() => { setActiveTab('orders'); setMobileMenuOpen(false); }}
+                  onClick={() => setActiveTab('orders')}
                   className={`w-full flex items-center justify-between py-2 px-3 rounded text-xs font-bold transition-all ${
                     activeTab === 'orders'
                       ? 'bg-brand-rose text-brand-cream shadow-sm'
@@ -388,7 +408,7 @@ export default function AdminDashboard() {
                   )}
                 </button>
                 <button
-                  onClick={() => { setActiveTab('custom'); setMobileMenuOpen(false); }}
+                  onClick={() => setActiveTab('custom')}
                   className={`w-full flex items-center justify-between py-2 px-3 rounded text-xs font-bold transition-all ${
                     activeTab === 'custom'
                       ? 'bg-brand-rose text-brand-cream shadow-sm'
@@ -406,7 +426,7 @@ export default function AdminDashboard() {
                   )}
                 </button>
                 <button
-                  onClick={() => { setActiveTab('messages'); setMobileMenuOpen(false); }}
+                  onClick={() => setActiveTab('messages')}
                   className={`w-full flex items-center justify-between py-2 px-3 rounded text-xs font-bold transition-all ${
                     activeTab === 'messages'
                       ? 'bg-brand-rose text-brand-cream shadow-sm'
@@ -431,7 +451,7 @@ export default function AdminDashboard() {
                   Marketing
                 </span>
                 <button
-                  onClick={() => { setActiveTab('coupons'); setMobileMenuOpen(false); }}
+                  onClick={() => setActiveTab('coupons')}
                   className={`w-full flex items-center space-x-2.5 py-2 px-3 rounded text-xs font-bold transition-all ${
                     activeTab === 'coupons'
                       ? 'bg-brand-rose text-brand-cream shadow-sm'
@@ -484,7 +504,7 @@ export default function AdminDashboard() {
             <div className="space-y-8 animate-fade-in">
               
               {/* Summary Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
                 <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-4 shadow-sm flex items-center space-x-3.5">
                   <div className="p-2.5 bg-brand-sage/10 text-brand-sage rounded-full"><DollarSign size={18} /></div>
                   <div>
@@ -500,6 +520,13 @@ export default function AdminDashboard() {
                   </div>
                 </div>
                 <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-4 shadow-sm flex items-center space-x-3.5">
+                  <div className="p-2.5 bg-rose-100 text-rose-700 rounded-full"><AlertTriangle size={18} /></div>
+                  <div>
+                    <span className="text-[10px] font-bold text-brand-cocoa/50 uppercase tracking-wider block">Pending Orders</span>
+                    <span className="text-lg font-bold text-brand-cocoa">{pendingOrdersCount}</span>
+                  </div>
+                </div>
+                <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-4 shadow-sm flex items-center space-x-3.5">
                   <div className="p-2.5 bg-amber-100 text-amber-700 rounded-full"><Clock size={18} /></div>
                   <div>
                     <span className="text-[10px] font-bold text-brand-cocoa/50 uppercase tracking-wider block">Crafting Queue</span>
@@ -507,7 +534,7 @@ export default function AdminDashboard() {
                   </div>
                 </div>
                 <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-4 shadow-sm flex items-center space-x-3.5">
-                  <div className="p-2.5 bg-rose-100 text-rose-700 rounded-full"><Mail size={18} /></div>
+                  <div className="p-2.5 bg-pink-100 text-pink-700 rounded-full"><Mail size={18} /></div>
                   <div>
                     <span className="text-[10px] font-bold text-brand-cocoa/50 uppercase tracking-wider block">New Messages</span>
                     <span className="text-lg font-bold text-brand-cocoa">{unreadMessagesCount}</span>
@@ -550,7 +577,7 @@ export default function AdminDashboard() {
                             <th className="pb-2 font-bold uppercase">Order ID</th>
                             <th className="pb-2 font-bold uppercase">Customer</th>
                             <th className="pb-2 font-bold uppercase">Amount</th>
-                            <th className="pb-2 font-bold uppercase">Status</th>
+                            <th className="pb-2 font-bold uppercase">Work Status</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-brand-beige/20 font-medium">
@@ -561,9 +588,9 @@ export default function AdminDashboard() {
                               <td className="py-2.5 font-bold">₹{o.total}</td>
                               <td className="py-2.5">
                                 <span className={`px-2 py-0.5 rounded-sm text-[9px] uppercase font-bold ${
-                                  o.payment_status === 'paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                                  o.order_status === 'delivered' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                                 }`}>
-                                  {o.payment_status}
+                                  {getOrderStatusLabel(o.order_status)}
                                 </span>
                               </td>
                             </tr>
@@ -623,7 +650,7 @@ export default function AdminDashboard() {
 
               </div>
 
-              {/* Grid 3: Custom Requests & Product Inventory */}
+              {/* Grid 3: Custom Requests & Products & Production Overview */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 
                 {/* Custom Requests Preview */}
@@ -678,30 +705,30 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Product Inventory Summary */}
+                {/* Products & Production Overview Card (Replaced Low Stock / Out of Stock) */}
                 <div className="lg:col-span-4 bg-brand-offwhite border border-brand-beige rounded-lg p-5 shadow-sm space-y-5 flex flex-col justify-between">
                   <div className="border-b border-brand-beige/50 pb-3">
-                    <h3 className="font-serif text-base font-bold text-brand-cocoa">Inventory Overview</h3>
+                    <h3 className="font-serif text-base font-bold text-brand-cocoa">Creations & Production</h3>
                   </div>
 
                   <div className="space-y-3.5">
                     <div className="flex justify-between items-center text-xs">
-                      <span className="font-bold text-brand-cocoa/70 uppercase">Total Unique Products</span>
+                      <span className="font-bold text-brand-cocoa/70 uppercase">Total Catalog Items</span>
                       <span className="font-serif text-lg font-bold text-brand-cocoa">{totalProducts}</span>
                     </div>
                     <div className="flex justify-between items-center text-xs">
                       <span className="font-bold text-brand-cocoa/70 uppercase flex items-center space-x-1.5">
-                        <AlertTriangle size={13} className="text-amber-500" />
-                        <span>Low Stock Items</span>
+                        <Sparkles size={13} className="text-brand-sage" />
+                        <span>Handmade to Order</span>
                       </span>
-                      <span className="text-sm font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">{lowStockProducts}</span>
+                      <span className="text-sm font-bold text-brand-sage bg-brand-sage/5 px-2 py-0.5 rounded border border-brand-sage/20">{madeToOrderCount}</span>
                     </div>
                     <div className="flex justify-between items-center text-xs">
                       <span className="font-bold text-brand-cocoa/70 uppercase flex items-center space-x-1.5">
                         <AlertTriangle size={13} className="text-brand-rose" />
-                        <span>Out of Stock</span>
+                        <span>Paused / Unavailable</span>
                       </span>
-                      <span className="text-sm font-bold text-brand-rose bg-rose-50 px-2 py-0.5 rounded border border-brand-rose/20">{outOfStockProducts}</span>
+                      <span className="text-sm font-bold text-brand-rose bg-rose-50 px-2 py-0.5 rounded border border-brand-rose/20">{temporarilyUnavailableCount}</span>
                     </div>
                   </div>
 
@@ -716,7 +743,7 @@ export default function AdminDashboard() {
                       onClick={() => setActiveTab('products')}
                       className="border border-brand-beige hover:bg-brand-beige/25 py-2 rounded text-brand-cocoa transition-colors"
                     >
-                      Manage Products
+                      Manage Catalog
                     </button>
                   </div>
                 </div>
@@ -780,25 +807,54 @@ export default function AdminDashboard() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-cocoa/30 backdrop-blur-sm animate-fade-in">
                   <div className="bg-brand-cream border border-brand-beige w-full max-w-2xl rounded-lg shadow-2xl overflow-y-auto max-h-[90vh] p-6 sm:p-8 animate-slide-up space-y-6">
                     <div className="flex justify-between items-center border-b border-brand-beige pb-3">
-                      <h4 className="font-serif text-lg font-bold text-brand-cocoa">Add New Creation</h4>
+                      <h4 className="font-serif text-lg font-bold text-brand-cocoa">Add New Crochet Creation</h4>
                       <button onClick={() => setShowAddProduct(false)}><X size={20} /></button>
                     </div>
                     
-                    <form onSubmit={handleAddProductSubmit} className="space-y-4 text-sm">
+                    <form onSubmit={handleAddProductSubmit} className="space-y-5 text-xs font-bold uppercase tracking-wider text-brand-cocoa">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1"><label className="block font-bold">Product Name *</label><input type="text" required value={newProdName} onChange={(e) => setNewProdName(e.target.value)} className="w-full bg-brand-offwhite border border-brand-beige rounded p-2" /></div>
-                        <div className="space-y-1"><label className="block font-bold">Price (INR) *</label><input type="number" required value={newProdPrice} onChange={(e) => setNewProdPrice(Number(e.target.value))} className="w-full bg-brand-offwhite border border-brand-beige rounded p-2" /></div>
+                        <div className="space-y-1.5"><label className="block">Product Name *</label><input type="text" required value={newProdName} onChange={(e) => setNewProdName(e.target.value)} placeholder="e.g. Lavender Bow Keychain" className="w-full bg-brand-offwhite border border-brand-beige rounded p-2.5 text-sm font-medium normal-case text-brand-cocoa" /></div>
+                        <div className="space-y-1.5"><label className="block">Price (INR) *</label><input type="number" required value={newProdPrice || ''} onChange={(e) => setNewProdPrice(Number(e.target.value))} placeholder="e.g. 299" className="w-full bg-brand-offwhite border border-brand-beige rounded p-2.5 text-sm font-medium text-brand-cocoa" /></div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="space-y-1"><label className="block font-bold">Stock Count</label><input type="number" required value={newProdStock} onChange={(e) => setNewProdStock(Number(e.target.value))} className="w-full bg-brand-offwhite border border-brand-beige rounded p-2" /></div>
-                        <div className="space-y-1"><label className="block font-bold">Compare-at Price (Optional)</label><input type="number" value={newProdCompare} onChange={(e) => setNewProdCompare(e.target.value)} className="w-full bg-brand-offwhite border border-brand-beige rounded p-2" /></div>
-                        <div className="space-y-1"><label className="block font-bold">Category</label><select value={newProdCategory} onChange={(e) => setNewProdCategory(e.target.value)} className="w-full bg-brand-offwhite border border-brand-beige rounded p-2">{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                        <div className="space-y-1.5"><label className="block">Compare-at Price (Optional)</label><input type="number" value={newProdCompare} onChange={(e) => setNewProdCompare(e.target.value)} placeholder="e.g. 349" className="w-full bg-brand-offwhite border border-brand-beige rounded p-2.5 text-sm font-medium text-brand-cocoa" /></div>
+                        <div className="space-y-1.5"><label className="block">Category</label><select value={newProdCategory} onChange={(e) => setNewProdCategory(e.target.value)} className="w-full bg-brand-offwhite border border-brand-beige rounded p-2.5 text-xs font-bold text-brand-cocoa">{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                        <div className="space-y-1.5"><label className="block">Preparation Time *</label><input type="text" required value={newProdPrepTime} onChange={(e) => setNewProdPrepTime(e.target.value)} placeholder="e.g. 3–5 days" className="w-full bg-brand-offwhite border border-brand-beige rounded p-2.5 text-sm font-medium normal-case text-brand-cocoa" /></div>
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="block font-bold">Image Selector</label>
-                        <select value={newProdImage} onChange={(e) => setNewProdImage(e.target.value)} className="w-full bg-brand-offwhite border border-brand-beige rounded p-2">
+                      {/* Product Availability & Production Settings (Replaced Stock counts) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-brand-beige/25 p-4 rounded border border-brand-beige/50">
+                        <div className="space-y-2">
+                          <label className="block font-bold">Product Availability</label>
+                          <div className="flex flex-col space-y-2 text-xs">
+                            <label className="flex items-center space-x-2 cursor-pointer">
+                              <input type="radio" name="availability" checked={newProdAvailability === 'available'} onChange={() => setNewProdAvailability('available')} />
+                              <span>Available (Accepting Orders)</span>
+                            </label>
+                            <label className="flex items-center space-x-2 cursor-pointer">
+                              <input type="radio" name="availability" checked={newProdAvailability === 'temporarily_unavailable'} onChange={() => setNewProdAvailability('temporarily_unavailable')} />
+                              <span>Temporarily Unavailable (Paused)</span>
+                            </label>
+                            <label className="flex items-center space-x-2 cursor-pointer">
+                              <input type="radio" name="availability" checked={newProdAvailability === 'discontinued'} onChange={() => setNewProdAvailability('discontinued')} />
+                              <span>Discontinued</span>
+                            </label>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="block font-bold">Production Mode</label>
+                          <label className="flex items-center space-x-2 pt-1 cursor-pointer">
+                            <input type="checkbox" checked={newProdMadeToOrder} onChange={(e) => setNewProdMadeToOrder(e.target.checked)} />
+                            <span>Made to Order ✓ (Crocheted after checkout)</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block">Image Selection</label>
+                        <select value={newProdImage} onChange={(e) => setNewProdImage(e.target.value)} className="w-full bg-brand-offwhite border border-brand-beige rounded p-2.5 text-xs font-bold text-brand-cocoa">
                           <option value="/images/butterfly_keychain.jpg">Butterfly Keychain</option>
                           <option value="/images/evil_eye_keychain.jpg">Evil Eye Keychain</option>
                           <option value="/images/flower_bookmark.jpg">Flower Bookmark</option>
@@ -807,59 +863,91 @@ export default function AdminDashboard() {
                         </select>
                       </div>
 
-                      <div className="space-y-1"><label className="block font-bold">Full Description *</label><textarea required rows={4} value={newProdDesc} onChange={(e) => setNewProdDesc(e.target.value)} className="w-full bg-brand-offwhite border border-brand-beige rounded p-2" /></div>
+                      <div className="space-y-1.5"><label className="block">Description *</label><textarea required rows={3} value={newProdDesc} onChange={(e) => setNewProdDesc(e.target.value)} className="w-full bg-brand-offwhite border border-brand-beige rounded p-2.5 text-sm font-medium normal-case text-brand-cocoa" /></div>
 
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-brand-beige/25 p-3 rounded border border-brand-beige/50 font-semibold text-xs text-brand-cocoa/80">
+                      <div className="grid grid-cols-3 gap-3 bg-brand-beige/20 p-3 rounded font-semibold text-xs text-brand-cocoa/80">
                         <label className="flex items-center space-x-2"><input type="checkbox" checked={newProdCustomizable} onChange={(e) => setNewProdCustomizable(e.target.checked)} /><span>Customizable</span></label>
                         <label className="flex items-center space-x-2"><input type="checkbox" checked={newProdFeatured} onChange={(e) => setNewProdFeatured(e.target.checked)} /><span>Featured</span></label>
                         <label className="flex items-center space-x-2"><input type="checkbox" checked={newProdBestseller} onChange={(e) => setNewProdBestseller(e.target.checked)} /><span>Bestseller</span></label>
-                        <label className="flex items-center space-x-2"><input type="checkbox" checked={newProdNew} onChange={(e) => setNewProdNew(e.target.checked)} /><span>New Release</span></label>
                       </div>
 
-                      <button type="submit" className="w-full bg-brand-rose text-brand-cream py-3 rounded font-bold uppercase tracking-wider text-xs shadow-sm hover:bg-brand-cocoa transition-colors">Add Product to Shop</button>
+                      <button type="submit" className="w-full bg-brand-rose text-brand-cream py-3.5 rounded font-bold uppercase tracking-wider text-xs shadow-sm hover:bg-brand-cocoa transition-colors">Add Creation to Shop</button>
                     </form>
                   </div>
                 </div>
               )}
 
-              {/* Editing Product Drawer overlay */}
+              {/* Editing Product Modal overlay */}
               {editingProduct && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-cocoa/30 backdrop-blur-sm animate-fade-in">
                   <div className="bg-brand-cream border border-brand-beige w-full max-w-2xl rounded-lg shadow-2xl overflow-y-auto max-h-[90vh] p-6 sm:p-8 animate-slide-up space-y-6">
                     <div className="flex justify-between items-center border-b border-brand-beige pb-3">
-                      <h4 className="font-serif text-lg font-bold text-brand-cocoa">Edit Product Details</h4>
+                      <h4 className="font-serif text-lg font-bold text-brand-cocoa">Edit Creation Details</h4>
                       <button onClick={() => setEditingProduct(null)}><X size={20} /></button>
                     </div>
                     
-                    <form onSubmit={handleSaveEditProduct} className="space-y-4 text-sm">
+                    <form onSubmit={handleSaveEditProduct} className="space-y-5 text-xs font-bold uppercase tracking-wider text-brand-cocoa">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                          <label className="block font-bold">Product Name *</label>
-                          <input type="text" required value={editingProduct.name} onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })} className="w-full bg-brand-offwhite border border-brand-beige rounded p-2" />
+                        <div className="space-y-1.5">
+                          <label className="block">Product Name *</label>
+                          <input type="text" required value={editingProduct.name} onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })} className="w-full bg-brand-offwhite border border-brand-beige rounded p-2.5 text-sm font-medium normal-case text-brand-cocoa" />
                         </div>
-                        <div className="space-y-1">
-                          <label className="block font-bold">Price (INR) *</label>
-                          <input type="number" required value={editingProduct.price} onChange={(e) => setEditingProduct({ ...editingProduct, price: Number(e.target.value) })} className="w-full bg-brand-offwhite border border-brand-beige rounded p-2" />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                          <label className="block font-bold">Stock *</label>
-                          <input type="number" required value={editingProduct.stock} onChange={(e) => setEditingProduct({ ...editingProduct, stock: Number(e.target.value) })} className="w-full bg-brand-offwhite border border-brand-beige rounded p-2" />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="block font-bold">Compare Price</label>
-                          <input type="number" value={editingProduct.compare_at_price || ''} onChange={(e) => setEditingProduct({ ...editingProduct, compare_at_price: e.target.value ? Number(e.target.value) : undefined })} className="w-full bg-brand-offwhite border border-brand-beige rounded p-2" />
+                        <div className="space-y-1.5">
+                          <label className="block">Price (INR) *</label>
+                          <input type="number" required value={editingProduct.price} onChange={(e) => setEditingProduct({ ...editingProduct, price: Number(e.target.value) })} className="w-full bg-brand-offwhite border border-brand-beige rounded p-2.5 text-sm font-medium text-brand-cocoa" />
                         </div>
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="block font-bold">Description *</label>
-                        <textarea required rows={4} value={editingProduct.description} onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })} className="w-full bg-brand-offwhite border border-brand-beige rounded p-2" />
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="block">Compare Price</label>
+                          <input type="number" value={editingProduct.compare_at_price || ''} onChange={(e) => setEditingProduct({ ...editingProduct, compare_at_price: e.target.value ? Number(e.target.value) : undefined })} className="w-full bg-brand-offwhite border border-brand-beige rounded p-2.5 text-sm font-medium text-brand-cocoa" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="block">Category</label>
+                          <select value={editingProduct.category_id} onChange={(e) => setEditingProduct({ ...editingProduct, category_id: e.target.value })} className="w-full bg-brand-offwhite border border-brand-beige rounded p-2.5 text-xs font-bold text-brand-cocoa">{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="block">Preparation Time *</label>
+                          <input type="text" required value={editingProduct.preparation_time || '3–5 days'} onChange={(e) => setEditingProduct({ ...editingProduct, preparation_time: e.target.value })} className="w-full bg-brand-offwhite border border-brand-beige rounded p-2.5 text-sm font-medium normal-case text-brand-cocoa" />
+                        </div>
                       </div>
 
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-brand-beige/25 p-3 rounded border border-brand-beige/50 font-semibold text-xs text-brand-cocoa/80">
+                      {/* Product Availability & Production Settings (Replaced Stock counts) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-brand-beige/25 p-4 rounded border border-brand-beige/50">
+                        <div className="space-y-2">
+                          <label className="block font-bold">Product Availability</label>
+                          <div className="flex flex-col space-y-2 text-xs">
+                            <label className="flex items-center space-x-2 cursor-pointer">
+                              <input type="radio" name="availability-edit" checked={editingProduct.availability_status === 'available'} onChange={() => setEditingProduct({ ...editingProduct, availability_status: 'available' })} />
+                              <span>Available (Accepting Orders)</span>
+                            </label>
+                            <label className="flex items-center space-x-2 cursor-pointer">
+                              <input type="radio" name="availability-edit" checked={editingProduct.availability_status === 'temporarily_unavailable'} onChange={() => setEditingProduct({ ...editingProduct, availability_status: 'temporarily_unavailable' })} />
+                              <span>Temporarily Unavailable (Paused)</span>
+                            </label>
+                            <label className="flex items-center space-x-2 cursor-pointer">
+                              <input type="radio" name="availability-edit" checked={editingProduct.availability_status === 'discontinued'} onChange={() => setEditingProduct({ ...editingProduct, availability_status: 'discontinued' })} />
+                              <span>Discontinued</span>
+                            </label>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="block font-bold">Production Mode</label>
+                          <label className="flex items-center space-x-2 pt-1 cursor-pointer">
+                            <input type="checkbox" checked={editingProduct.made_to_order || false} onChange={(e) => setEditingProduct({ ...editingProduct, made_to_order: e.target.checked })} />
+                            <span>Made to Order ✓ (Crocheted after checkout)</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block">Description *</label>
+                        <textarea required rows={4} value={editingProduct.description} onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })} className="w-full bg-brand-offwhite border border-brand-beige rounded p-2.5 text-sm font-medium normal-case text-brand-cocoa" />
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-3 bg-brand-beige/20 p-3 rounded font-semibold text-xs text-brand-cocoa/80">
                         <label className="flex items-center space-x-2"><input type="checkbox" checked={editingProduct.featured} onChange={(e) => setEditingProduct({ ...editingProduct, featured: e.target.checked })} /><span>Featured</span></label>
                         <label className="flex items-center space-x-2"><input type="checkbox" checked={editingProduct.bestseller} onChange={(e) => setEditingProduct({ ...editingProduct, bestseller: e.target.checked })} /><span>Bestseller</span></label>
                         <label className="flex items-center space-x-2"><input type="checkbox" checked={editingProduct.new_product} onChange={(e) => setEditingProduct({ ...editingProduct, new_product: e.target.checked })} /><span>New</span></label>
@@ -872,7 +960,7 @@ export default function AdminDashboard() {
                 </div>
               )}
 
-              {/* Products Table */}
+              {/* Products Table (Availability Column Replaced Stock) */}
               <div className="bg-brand-offwhite border border-brand-beige rounded-lg overflow-hidden shadow-sm overflow-x-auto">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
@@ -881,7 +969,7 @@ export default function AdminDashboard() {
                       <th className="p-4">SKU</th>
                       <th className="p-4">Category</th>
                       <th className="p-4">Price</th>
-                      <th className="p-4">Stock</th>
+                      <th className="p-4">Availability</th>
                       <th className="p-4 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -904,10 +992,18 @@ export default function AdminDashboard() {
                         <td className="p-4 text-xs font-semibold capitalize">{p.category_id}</td>
                         <td className="p-4 font-semibold">₹{p.price}</td>
                         <td className="p-4">
-                          <span className={`text-xs font-bold ${p.stock === 0 ? 'text-brand-rose' : 'text-brand-cocoa/85'}`}>{p.stock} left</span>
+                          <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-sm ${
+                            p.availability_status === 'available'
+                              ? 'bg-emerald-50 text-emerald-800 bg-emerald-50 border border-emerald-200'
+                              : p.availability_status === 'temporarily_unavailable'
+                              ? 'bg-rose-50 text-brand-rose border border-rose-200'
+                              : 'bg-brand-cocoa/10 text-brand-cocoa/60'
+                          }`}>
+                            {p.availability_status === 'available' ? 'Made to Order' : p.availability_status === 'temporarily_unavailable' ? 'Unavailable' : 'Discontinued'}
+                          </span>
                         </td>
                         <td className="p-4 text-right space-x-2 whitespace-nowrap">
-                          <button onClick={() => setEditingProduct(p)} className="p-1.5 rounded bg-brand-cream hover:bg-brand-rose hover:text-brand-cream border border-brand-beige text-brand-cocoa transition-colors animate-slide-up" title="Edit"><Edit2 size={13} /></button>
+                          <button onClick={() => setEditingProduct(p)} className="p-1.5 rounded bg-brand-cream hover:bg-brand-rose hover:text-brand-cream border border-brand-beige text-brand-cocoa transition-colors" title="Edit"><Edit2 size={13} /></button>
                           <button onClick={() => deleteProduct(p.id)} className="p-1.5 rounded bg-brand-cream hover:bg-brand-rose hover:text-brand-cream border border-brand-beige text-brand-cocoa transition-colors" title="Delete"><Trash2 size={13} /></button>
                         </td>
                       </tr>
@@ -932,7 +1028,7 @@ export default function AdminDashboard() {
                       <th className="p-4">Items Summary</th>
                       <th className="p-4">Total</th>
                       <th className="p-4">Payment</th>
-                      <th className="p-4">Order Status</th>
+                      <th className="p-4">Production Workflow</th>
                       <th className="p-4">Date</th>
                     </tr>
                   </thead>
@@ -967,14 +1063,16 @@ export default function AdminDashboard() {
                             </select>
                           </td>
                           <td className="p-4">
+                            {/* Updated Made-to-Order Production Workflow Selectors */}
                             <select
                               value={o.order_status}
                               onChange={(e) => updateOrderStatus(o.id, e.target.value as any)}
                               className="bg-brand-cream border border-brand-beige text-xs rounded p-1.5 text-brand-cocoa font-semibold focus:outline-none focus:border-brand-rose"
                             >
-                              <option value="pending">Pending</option>
-                              <option value="confirmed">Confirmed</option>
+                              <option value="pending">Order Placed</option>
+                              <option value="confirmed">Order Confirmed</option>
                               <option value="being_crafted">Being Crafted</option>
+                              <option value="quality_check">Quality Check</option>
                               <option value="packed">Packed</option>
                               <option value="shipped">Shipped</option>
                               <option value="delivered">Delivered</option>
@@ -1291,12 +1389,10 @@ export default function AdminDashboard() {
 
       {/* MESSAGE DETAILS MODAL DIALOG */}
       {selectedMessage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
-          {/* Backdrop */}
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-brand-cocoa/40 backdrop-blur-sm" onClick={() => setSelectedMessage(null)} />
 
-          {/* Modal Container */}
-          <div className="bg-brand-cream border border-brand-beige w-full max-w-lg rounded-lg shadow-2xl overflow-hidden z-10 p-6 sm:p-8 animate-slide-up flex flex-col max-h-[90vh]">
+          <div className="bg-brand-cream border border-brand-beige w-full max-w-lg rounded-lg shadow-2xl overflow-hidden z-10 p-6 sm:p-8 animate-slide-up flex flex-col max-h-[90vh] relative">
             <button
               onClick={() => setSelectedMessage(null)}
               className="absolute top-4 right-4 p-1 rounded-full text-brand-cocoa hover:text-brand-rose transition-colors z-20"
@@ -1317,10 +1413,7 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* Modal Scrollable Contents */}
             <div className="overflow-y-auto space-y-5 pr-1 flex-grow text-xs leading-relaxed text-brand-cocoa">
-              
-              {/* Customer Contact Card */}
               <div className="bg-brand-offwhite border border-brand-beige rounded p-4 space-y-2">
                 <p><strong className="font-bold text-brand-cocoa/50 uppercase tracking-wide text-[9px] block">Customer Name</strong><span className="text-sm font-semibold">{selectedMessage.name}</span></p>
                 <p><strong className="font-bold text-brand-cocoa/50 uppercase tracking-wide text-[9px] block">Email Address</strong><a href={`mailto:${selectedMessage.email}`} className="text-xs text-brand-rose font-medium hover:underline">{selectedMessage.email}</a></p>
@@ -1330,17 +1423,14 @@ export default function AdminDashboard() {
                 <p><strong className="font-bold text-brand-cocoa/50 uppercase tracking-wide text-[9px] block">Submitted At</strong><span className="text-xs font-medium font-mono">{new Date(selectedMessage.created_at).toLocaleString('en-IN')}</span></p>
               </div>
 
-              {/* Message Details */}
               <div className="space-y-1.5">
                 <span className="font-bold text-brand-cocoa/50 uppercase tracking-wide text-[9px] block">Customer Message</span>
                 <p className="bg-brand-cream border border-brand-beige rounded p-4 text-xs whitespace-pre-wrap leading-relaxed text-brand-cocoa">
                   {selectedMessage.message}
                 </p>
               </div>
-
             </div>
 
-            {/* Modal Action Controls Footer */}
             <div className="border-t border-brand-beige/50 pt-5 mt-5 flex flex-wrap gap-2.5 justify-end">
               <button
                 onClick={() => handleMarkMessageStatus(selectedMessage.id, selectedMessage.status)}
@@ -1356,7 +1446,6 @@ export default function AdminDashboard() {
                 Delete
               </button>
 
-              {/* WhatsApp reply option */}
               {selectedMessage.phone && (
                 <a
                   href={`https://wa.me/91${selectedMessage.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
@@ -1371,7 +1460,6 @@ export default function AdminDashboard() {
                 </a>
               )}
 
-              {/* Mailto reply option */}
               <a
                 href={`mailto:${selectedMessage.email}?subject=${encodeURIComponent(`Re: ${selectedMessage.subject}`)}`}
                 className="px-4 py-2 bg-brand-rose text-brand-cream rounded text-xs font-bold hover:bg-brand-cocoa transition-colors inline-flex items-center space-x-1.5 uppercase tracking-wider shadow-sm"
@@ -1387,7 +1475,7 @@ export default function AdminDashboard() {
 
       {/* DELETE CONFIRMATION DIALOG MODAL */}
       {messageToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-brand-cocoa/45 backdrop-blur-xs" onClick={() => setMessageToDelete(null)} />
           <div className="bg-brand-cream border border-brand-beige rounded-lg shadow-xl w-full max-w-sm p-6 relative z-10 text-center space-y-4 animate-slide-up">
             <h4 className="font-serif text-lg font-bold text-brand-cocoa">Delete this message?</h4>

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Heart, Star, ShoppingBag, ArrowRight, Check, MessageSquare, ChevronRight } from 'lucide-react';
+import { Heart, Star, ShoppingBag, ArrowRight, Check, MessageSquare, ChevronRight, Sparkles } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { BRAND_CONFIG } from '@/config/brand';
 import { useCart } from '@/context/CartContext';
@@ -79,7 +79,8 @@ export default function ProductDetails({ params }: PageProps) {
   }
 
   const isSaved = isInWishlist(product.id);
-  const isSoldOut = product.stock === 0;
+  const isUnavailable = product.availability_status === 'temporarily_unavailable';
+  const isSoldOut = isUnavailable; // Alias for button check consistency
 
   // Filter approved reviews for this product
   const productReviews = reviews.filter((r) => r.productId === product.id && r.approved);
@@ -289,12 +290,13 @@ export default function ProductDetails({ params }: PageProps) {
                 
                 <span className="text-brand-cocoa/30">|</span>
                 
-                {isSoldOut ? (
-                  <span className="text-brand-cocoa uppercase tracking-wider font-bold">Sold Out</span>
-                ) : product.stock <= 5 ? (
-                  <span className="text-brand-rose uppercase tracking-wider font-bold">Only {product.stock} left!</span>
+                {isUnavailable ? (
+                  <span className="text-brand-rose uppercase tracking-wider font-bold">Currently Unavailable</span>
                 ) : (
-                  <span className="text-brand-sage uppercase tracking-wider font-bold">In Stock</span>
+                  <span className="text-brand-sage uppercase tracking-wider font-bold flex items-center space-x-1.5">
+                    <span>Made to Order ♡</span>
+                    <span className="text-brand-cocoa/40 font-normal">· Usually ready in {product.preparation_time || '3–5 days'}</span>
+                  </span>
                 )}
               </div>
 
@@ -386,13 +388,18 @@ export default function ProductDetails({ params }: PageProps) {
 
               {/* Action Buttons row */}
               <div className="flex flex-col sm:flex-row items-stretch gap-3">
-                {isSoldOut ? (
-                  <button
-                    disabled
-                    className="flex-grow bg-brand-beige text-brand-cocoa/40 font-bold text-sm py-4 px-6 rounded cursor-not-allowed border border-brand-beige text-center"
-                  >
-                    Sold Out
-                  </button>
+                {isUnavailable ? (
+                  <div className="flex-grow space-y-3">
+                    <button
+                      disabled
+                      className="w-full bg-brand-beige text-brand-cocoa/40 font-bold text-sm py-4 px-6 rounded cursor-not-allowed border border-brand-beige text-center"
+                    >
+                      Currently Unavailable
+                    </button>
+                    <p className="text-xs text-brand-rose font-semibold text-center bg-rose-50 p-3 rounded border border-rose-100">
+                      This crochet piece is temporarily unavailable. Please check back soon or contact us for a custom request.
+                    </p>
+                  </div>
                 ) : (
                   <>
                     <button
@@ -445,6 +452,19 @@ export default function ProductDetails({ params }: PageProps) {
                 <MessageSquare size={16} />
                 <span>Order via WhatsApp</span>
               </button>
+
+              {/* Made Especially For You Info */}
+              {!isUnavailable && (
+                <div className="bg-brand-beige/10 border border-brand-beige/50 rounded-lg p-4 space-y-1.5 mt-4">
+                  <h4 className="font-serif text-sm font-bold text-brand-cocoa flex items-center space-x-1.5">
+                    <Sparkles size={14} className="text-brand-rose" />
+                    <span>Made Especially For You</span>
+                  </h4>
+                  <p className="text-xs text-brand-cocoa/85 leading-relaxed">
+                    Every piece is crocheted after your order is placed, so your creation is made especially for you. ♡
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>

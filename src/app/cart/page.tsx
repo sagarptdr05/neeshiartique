@@ -3,8 +3,9 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Trash2, Heart, ArrowRight, ShoppingBag, Tag, Check, X } from 'lucide-react';
+import { Trash2, Heart, ArrowRight, ShoppingBag, Tag, Check, X, AlertTriangle } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
+import { useStore } from '@/context/StoreContext';
 import AnnouncementBar from '@/components/AnnouncementBar';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -22,10 +23,17 @@ export default function Cart() {
     shipping,
     total,
   } = useCart();
+  const { products } = useStore();
 
   const [inputCoupon, setInputCoupon] = useState('');
   const [couponError, setCouponError] = useState('');
   const [couponSuccess, setCouponSuccess] = useState('');
+
+  // Check if any items are temporarily unavailable
+  const hasUnavailableItems = cartItems.some(item => {
+    const prod = products.find(p => p.id === item.productId);
+    return !prod || prod.availability_status !== 'available';
+  });
 
   const handleApplyCoupon = (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,6 +132,18 @@ export default function Cart() {
                             ✿ {item.customization}
                           </span>
                         )}
+                        {(() => {
+                          const prod = products.find(p => p.id === item.productId);
+                          const isUnavailable = !prod || prod.availability_status === 'temporarily_unavailable';
+                          if (isUnavailable) {
+                            return (
+                              <span className="text-[11px] font-bold text-brand-rose block bg-rose-50 border border-brand-rose/10 p-2 rounded mt-1.5 leading-relaxed">
+                                This item is currently unavailable. Please remove it from your cart or choose another creation.
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
                         <button
                           onClick={() => removeFromCart(item.productId, item.customization)}
                           className="text-xs text-brand-cocoa/50 hover:text-brand-rose flex items-center space-x-1.5 pt-1.5 transition-colors"
@@ -256,13 +276,28 @@ export default function Cart() {
 
               {/* CTA Actions */}
               <div className="pt-4 border-t border-brand-beige/40">
-                <Link
-                  href="/checkout"
-                  className="w-full bg-brand-rose hover:bg-brand-cocoa text-brand-cream transition-colors font-bold text-sm py-4 px-6 rounded flex items-center justify-center space-x-2 shadow-sm"
-                >
-                  <span>Proceed to Checkout</span>
-                  <ArrowRight size={16} />
-                </Link>
+                {hasUnavailableItems ? (
+                  <div className="space-y-2">
+                    <button
+                      disabled
+                      className="w-full bg-brand-beige text-brand-cocoa/40 border border-brand-beige/50 font-bold text-xs py-4 px-6 rounded flex items-center justify-center space-x-2 cursor-not-allowed shadow-sm uppercase tracking-wider"
+                    >
+                      <span>Checkout Blocked</span>
+                      <AlertTriangle size={14} />
+                    </button>
+                    <p className="text-[10px] text-brand-rose font-semibold text-center">
+                      Please remove unavailable items to continue.
+                    </p>
+                  </div>
+                ) : (
+                  <Link
+                    href="/checkout"
+                    className="w-full bg-brand-rose hover:bg-brand-cocoa text-brand-cream transition-colors font-bold text-sm py-4 px-6 rounded flex items-center justify-center space-x-2 shadow-sm"
+                  >
+                    <span>Proceed to Checkout</span>
+                    <ArrowRight size={16} />
+                  </Link>
+                )}
               </div>
             </div>
             

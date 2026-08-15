@@ -80,9 +80,9 @@ function ShopContent() {
         return false;
       }
 
-      // Stock filter
-      if (selectedStock === 'instock' && p.stock === 0) return false;
-      if (selectedStock === 'soldout' && p.stock > 0) return false;
+      // Availability filter
+      if (selectedStock === 'instock' && p.availability_status !== 'available') return false;
+      if (selectedStock === 'soldout' && p.availability_status === 'available') return false;
 
       // Customization filter
       if (selectedCustom === 'custom' && !p.customization_available) return false;
@@ -229,7 +229,7 @@ function ShopContent() {
                     onChange={() => setSelectedStock('instock')}
                     className="accent-brand-rose cursor-pointer"
                   />
-                  <span>In Stock Only</span>
+                  <span>Available Now</span>
                 </label>
                 <label className="flex items-center space-x-2.5 cursor-pointer">
                   <input
@@ -238,7 +238,7 @@ function ShopContent() {
                     onChange={() => setSelectedStock('soldout')}
                     className="accent-brand-rose cursor-pointer"
                   />
-                  <span>Sold Out Only</span>
+                  <span>Temporarily Unavailable</span>
                 </label>
               </div>
             </div>
@@ -308,8 +308,8 @@ function ShopContent() {
                     <h3 className="font-serif text-sm font-bold text-brand-cocoa">Availability</h3>
                     <div className="flex flex-col space-y-2 text-sm">
                       <label className="flex items-center space-x-2.5"><input type="radio" checked={selectedStock === 'all'} onChange={() => setSelectedStock('all')} /><span>All Items</span></label>
-                      <label className="flex items-center space-x-2.5"><input type="radio" checked={selectedStock === 'instock'} onChange={() => setSelectedStock('instock')} /><span>In Stock</span></label>
-                      <label className="flex items-center space-x-2.5"><input type="radio" checked={selectedStock === 'soldout'} onChange={() => setSelectedStock('soldout')} /><span>Sold Out</span></label>
+                      <label className="flex items-center space-x-2.5"><input type="radio" checked={selectedStock === 'instock'} onChange={() => setSelectedStock('instock')} /><span>Available Now</span></label>
+                      <label className="flex items-center space-x-2.5"><input type="radio" checked={selectedStock === 'soldout'} onChange={() => setSelectedStock('soldout')} /><span>Temporarily Unavailable</span></label>
                     </div>
                   </div>
 

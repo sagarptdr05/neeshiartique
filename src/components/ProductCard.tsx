@@ -21,15 +21,16 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
   const [isHovered, setIsHovered] = useState(false);
 
   const isSaved = isInWishlist(product.id);
-  const isSoldOut = product.stock === 0;
+  const isUnavailable = product.availability_status === 'temporarily_unavailable';
+  const isSoldOut = isUnavailable; // Alias for cart handler consistency
 
   // Determine badge to display
   let badgeText = '';
   let badgeColorClass = '';
 
-  if (isSoldOut) {
-    badgeText = 'SOLD OUT';
-    badgeColorClass = 'bg-brand-cocoa text-brand-cream';
+  if (isUnavailable) {
+    badgeText = 'UNAVAILABLE';
+    badgeColorClass = 'bg-brand-cocoa text-brand-cream/85';
   } else if (product.new_product) {
     badgeText = 'NEW';
     badgeColorClass = 'bg-brand-blush text-brand-cocoa';
@@ -163,16 +164,23 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
           </h3>
         </Link>
 
-        {/* Price tag */}
-        <div className="mt-auto flex items-baseline space-x-2">
-          <span className="text-sm font-semibold text-brand-cocoa">
-            ₹{product.price}
-          </span>
-          {product.compare_at_price && (
-            <span className="text-xs text-brand-cocoa/50 line-through">
-              ₹{product.compare_at_price}
+        {/* Price tag & Availability */}
+        <div className="mt-auto flex items-center justify-between pt-1">
+          <div className="flex items-baseline space-x-1.5">
+            <span className="text-sm font-semibold text-brand-cocoa">
+              ₹{product.price}
             </span>
-          )}
+            {product.compare_at_price && (
+              <span className="text-xs text-brand-cocoa/50 line-through">
+                ₹{product.compare_at_price}
+              </span>
+            )}
+          </div>
+          <span className={`text-[9px] font-bold uppercase tracking-wider ${
+            isUnavailable ? 'text-brand-rose' : 'text-brand-sage'
+          }`}>
+            {isUnavailable ? 'Unavailable' : 'Made to Order'}
+          </span>
         </div>
       </div>
     </div>

@@ -192,17 +192,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       created_at: new Date().toISOString(),
     };
     
-    // Deduct stock from products
-    const updatedProducts = products.map((p) => {
-      const orderItem = newOrder.items.find((item) => item.productId === p.id);
-      if (orderItem) {
-        return { ...p, stock: Math.max(0, p.stock - orderItem.quantity) };
-      }
-      return p;
-    });
-    setProducts(updatedProducts);
-    syncLocal('neeshi_products', updatedProducts);
-
     const updatedOrders = [o, ...orders];
     setOrders(updatedOrders);
     syncLocal('neeshi_orders', updatedOrders);

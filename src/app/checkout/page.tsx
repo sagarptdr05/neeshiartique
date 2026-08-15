@@ -13,7 +13,7 @@ import Footer from '@/components/Footer';
 export default function Checkout() {
   const router = useRouter();
   const { cartItems, subtotal, shipping, couponDiscount, total, clearCart } = useCart();
-  const { placeOrder } = useStore();
+  const { products, placeOrder } = useStore();
 
   // Form input states
   const [fullName, setFullName] = useState('');
@@ -37,6 +37,17 @@ export default function Checkout() {
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Verify availability status of all items
+    const hasUnavailableItems = cartItems.some(item => {
+      const prod = products.find(p => p.id === item.productId);
+      return !prod || prod.availability_status !== 'available';
+    });
+    if (hasUnavailableItems) {
+      alert('Some items in your cart are currently unavailable. Please return to the basket and remove them.');
+      return;
+    }
+
     if (!fullName.trim() || !email.trim() || !phone.trim() || !address.trim() || !city.trim() || !pincode.trim()) {
       alert('Please fill in all required shipping fields.');
       return;
