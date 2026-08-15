@@ -1,0 +1,16 @@
+[
+  {
+    "name": "Neeshita",
+    "email": "Neeshita.art27@gmail.com",
+    "password": "admin123",
+    "phone": "6388992271",
+    "role": "admin"
+  },
+  {
+    "name": "Sagar Patidar",
+    "email": "sagar@example.com",
+    "password": "sagar123",
+    "phone": "6388992271",
+    "role": "customer"
+  }
+]
