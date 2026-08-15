@@ -92,53 +92,7 @@ export default function ArtistProfile() {
           </div>
         </section>
 
-        {/* Instagram / Behind the Scenes Gallery */}
-        <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-16 sm:pb-24 border-t border-brand-beige/20 pt-16">
-          <div className="space-y-10">
-            <div className="text-center space-y-2">
-              <span className="text-xs font-bold text-brand-rose tracking-widest uppercase block">Instagram Feed Moments</span>
-              <h3 className="font-serif text-2xl font-bold text-brand-cocoa">Behind the Scenes & Creations</h3>
-              <p className="text-xs sm:text-sm text-brand-rose font-serif italic">From my feed to your home @neeshita.198</p>
-              <div className="w-12 h-[1px] bg-brand-rose/40 mx-auto pt-1" />
-            </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
-              {[
-                { src: '/images/insta_1.jpg', alt: 'Handmade Crochet Creation' },
-                { src: '/images/insta_2.png', alt: 'Cute Crochet Details' },
-                { src: '/images/insta_3.png', alt: 'Beautiful Crochet Keychain' },
-                { src: '/images/insta_4.png', alt: 'Packaging & Custom Gifting' }
-              ].map((img, i) => (
-                <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-brand-beige shadow-sm bg-brand-beige/10 group">
-                  <Image
-                    src={img.src}
-                    alt={img.alt}
-                    fill
-                    sizes="(max-width: 768px) 50vw, 25vw"
-                    className="object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
-                  <div className="absolute inset-0 bg-brand-cocoa/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                    <span className="text-brand-cream text-[10px] font-bold tracking-widest uppercase bg-brand-cocoa/40 py-1 px-3.5 rounded-full backdrop-blur-xs">
-                      View Post
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            <div className="text-center">
-              <a
-                href="https://instagram.com/neeshita.198"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center space-x-1.5 text-xs font-bold text-brand-rose hover:text-brand-cocoa uppercase tracking-wider transition-colors"
-              >
-                <span>Follow Neeshita on Instagram @neeshita.198</span>
-                <ChevronRight size={14} />
-              </a>
-            </div>
-          </div>
-        </section>
 
         {/* 2. Editorial Story Sections */}
         <section className="bg-brand-beige/10 border-t border-b border-brand-beige/30 py-16 sm:py-24">
