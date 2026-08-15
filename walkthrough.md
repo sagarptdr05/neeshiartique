@@ -1,6 +1,6 @@
 # Walkthrough: Neeshiartique Platform Refactoring
 
-This document outlines the complete changes made during the refactoring sessions to secure the platform, establish a crochet-only identity, prepare Supabase integrations, and perform a comprehensive production security audit.
+This document outlines the complete changes made during the refactoring sessions to secure the platform, establish a crochet-only identity, prepare Supabase integrations, perform a comprehensive production security audit, and implement a full Website Content Management System (CMS) for the homepage and artist profile.
 
 ---
 
@@ -50,7 +50,7 @@ This document outlines the complete changes made during the refactoring sessions
   - Messages Inbox tab: Customer cards listing unread dots, email, date/time, and search/filter/sort parameters.
   - Detail message modal overlay: Automatically marks messages as read on click, offers Mark Unread action, Reply Email (mailto client trigger), Reply WhatsApp (with polite prefilled prompt containing customer details), and Delete message confirmation prompt.
 
-### 🔌 Supabase Backend Integration Preparation [NEW]
+### 🔌 Supabase Backend Integration Preparation
 Prepared Neeshiartique for a full Supabase migration (Auth, Database, Storage, RLS) without requiring active credentials during local verification:
 - **Client/Server Clients Split**:
   - [`src/lib/supabase/client.ts`](file:///Users/sagar/Desktop/neeshita/src/lib/supabase/client.ts): Reusable Browser client for safe authenticated customer calls.
@@ -60,7 +60,7 @@ Prepared Neeshiartique for a full Supabase migration (Auth, Database, Storage, R
 - **Dynamic Local Mocks Fallback**: API endpoints detect if Supabase is configured; if missing, they fall back gracefully to secure local JSON database storage, keeping development fully active.
 - **Environment & Git Setup**: Added public and private configuration placeholders in [`.env.example`](file:///Users/sagar/Desktop/neeshita/.env.example) and protected secrets in `.gitignore`.
 
-### 🛡️ Production Security Hardening [NEW]
+### 🛡️ Production Security Hardening
 Completed a complete code audit and resolved potential security liabilities:
 - **Zod Input Schema Checks**: Integrated server-side validations inside [`src/lib/validation.ts`](file:///Users/sagar/Desktop/neeshita/src/lib/validation.ts) checking login, registration, contact messages, custom requests, and cart checkouts to block injection and mail/phone regex errors.
 - **Production Headers**: Updated [`next.config.ts`](file:///Users/sagar/Desktop/neeshita/next.config.ts) to inject standard X-Frame-Options (DENY), X-Content-Type-Options (nosniff), Referrer-Policy, and Permissions-Policy on all routes.
@@ -69,6 +69,15 @@ Completed a complete code audit and resolved potential security liabilities:
   - [`SUPABASE_SETUP.md`](file:///Users/sagar/Desktop/neeshita/SUPABASE_SETUP.md): Step-by-step setup guides for buckets, SQL migrations, and the admin user role.
   - [`BACKEND_CHECKLIST.md`](file:///Users/sagar/Desktop/neeshita/BACKEND_CHECKLIST.md): Verification steps when connecting the live Supabase instance.
   - [`SECURITY_AUDIT.md`](file:///Users/sagar/Desktop/neeshita/SECURITY_AUDIT.md): Detailed vulnerability assessments and mitigation report.
+
+### 🌐 Website Homepage & Artist CMS [NEW]
+Designed and implemented a full structured CMS for managing the homepage sections and artist portfolio content dynamically without editing files:
+- **CMS Admin Pages**:
+  - [`/admin/homepage`](file:///Users/sagar/Desktop/neeshita/src/app/admin/homepage/page.tsx): Manage Hero content, Hero image uploads, Announcement text and status, Featured products ordering, Category headings, Custom request CTA content, Section Visibility toggles, and Display order stack. Features live component mockup preview.
+  - [`/admin/artist`](file:///Users/sagar/Desktop/neeshita/src/app/admin/artist/page.tsx): Edit artist details, photos, short introductory quotes, location, email, and biography chapters. Automatically synchronizes with the Homepage Meet the Artist section.
+- **Safe File Upload Router**: Created `/api/admin/upload` validating incoming uploads for MIME type (images only), size limits (max 5MB), path validation, and unique filename generation, mapping to Supabase Storage or local folders.
+- **Local Fallback Data**: Initialized JSON configs [`homepage_content.json`](file:///Users/sagar/Desktop/neeshita/src/data/homepage_content.json) and [`artist_profile.json`](file:///Users/sagar/Desktop/neeshita/src/data/artist_profile.json) with default content, enabling CMS operations out of the box in local fallback mode.
+- **SQL Migration**: Wrote [`20260815000100_homepage_cms.sql`](file:///Users/sagar/Desktop/neeshita/supabase/migrations/20260815000100_homepage_cms.sql) setting up the SQL tables, public read constraints, and admin-only RLS policies.
 
 ---
 
@@ -83,10 +92,10 @@ Production compiler output verifying webpack compilation and page optimization c
 ```bash
 ▲ Next.js 16.3.1 (webpack)
 Creating an optimized production build ...
-✓ Compiled successfully in 1311ms
+✓ Compiled successfully in 2.1s
 Running TypeScript ...
-Finished TypeScript in 706ms ...
-Generating static pages (28/28) in 125ms
+Finished TypeScript in 1844ms ...
+Generating static pages (33/33) in 179ms
 Finalizing page optimization ...
 Collecting build traces ...
 ```
