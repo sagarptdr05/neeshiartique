@@ -44,13 +44,18 @@ import AnnouncementBar from '@/components/AnnouncementBar';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 
-type AdminTab = 'overview' | 'products' | 'orders' | 'custom' | 'messages' | 'coupons';
+type AdminTab = 'overview' | 'products' | 'orders' | 'completed-orders' | 'custom' | 'messages' | 'coupons';
 
 export default function AdminDashboard() {
   const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
   const [adminUser, setAdminUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+
+  // Completed Orders Search & Filter States
+  const [completedSearch, setCompletedSearch] = useState('');
+  const [completedDateFilter, setCompletedDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
+  const [completedSort, setCompletedSort] = useState<'newest' | 'oldest' | 'highest' | 'lowest'>('newest');
 
   // Messages States
   const [messages, setMessages] = useState<any[]>([]);
@@ -280,8 +285,12 @@ export default function AdminDashboard() {
     setNewCouponMin('');
   };
 
+  // Active vs Completed Orders Filtering
+  const activeOrders = orders.filter((o) => o.order_status !== 'delivered' && o.order_status !== 'cancelled');
+  const completedOrders = orders.filter((o) => o.order_status === 'delivered');
+
   // Metrics (Made-to-Order + manual payment model). Revenue only ever counts
-  // orders whose payment the admin has actually verified.
+  // orders whose payment the admin has actually verified (including delivered orders).
   const totalRevenue = orders.filter(isRevenueCounted).reduce((acc, o) => acc + o.total, 0);
   const awaitingPaymentCount = orders.filter((o) => o.payment_status === 'awaiting_payment').length;
   const pendingCraftingCount = orders.filter((o) => o.order_status === 'being_crafted').length;
@@ -294,10 +303,47 @@ export default function AdminDashboard() {
   const madeToOrderCount = products.filter((p) => p.made_to_order).length;
   const temporarilyUnavailableCount = products.filter((p) => p.availability_status === 'temporarily_unavailable').length;
 
-  // Recent lists for overview dashboard
-  const recentOrders = [...orders].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5);
+  // Recent lists for overview dashboard (Active orders only)
+  const recentOrders = [...activeOrders].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5);
   const recentRequests = [...customOrders].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5);
   const recentMessages = [...messages].slice(0, 5);
+
+  // Filtered Completed Orders computation
+  const filteredCompletedOrders = completedOrders
+    .filter((o) => {
+      if (!completedSearch.trim()) return true;
+      const term = completedSearch.trim().toLowerCase();
+      const matchId = o.id.toLowerCase().includes(term);
+      const matchName = o.shipping_address?.fullName?.toLowerCase().includes(term);
+      const matchEmail = o.shipping_address?.email?.toLowerCase().includes(term);
+      return matchId || matchName || matchEmail;
+    })
+    .filter((o) => {
+      if (completedDateFilter === 'all') return true;
+      const d = new Date(o.delivered_at || o.updated_at || o.created_at);
+      const now = new Date();
+      if (completedDateFilter === 'today') {
+        return d.toDateString() === now.toDateString();
+      }
+      if (completedDateFilter === 'week') {
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        return d >= weekAgo;
+      }
+      if (completedDateFilter === 'month') {
+        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        return d >= monthAgo;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      const dateA = new Date(a.delivered_at || a.updated_at || a.created_at).getTime();
+      const dateB = new Date(b.delivered_at || b.updated_at || b.created_at).getTime();
+      if (completedSort === 'newest') return dateB - dateA;
+      if (completedSort === 'oldest') return dateA - dateB;
+      if (completedSort === 'highest') return b.total - a.total;
+      if (completedSort === 'lowest') return a.total - b.total;
+      return 0;
+    });
 
   const getGreeting = () => {
     const hours = new Date().getHours();
@@ -393,10 +439,28 @@ export default function AdminDashboard() {
                     <ShoppingBag size={14} />
                     <span>Orders</span>
                   </span>
-                  {orders.length > 0 && (
+                  {activeOrders.length > 0 && (
                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
                       activeTab === 'orders' ? 'bg-brand-cream text-brand-rose' : 'bg-brand-rose text-brand-cream'
-                    }`}>{orders.length}</span>
+                    }`}>{activeOrders.length}</span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveTab('completed-orders')}
+                  className={`w-full flex items-center justify-between py-2 px-3 rounded text-xs font-bold transition-all ${
+                    activeTab === 'completed-orders'
+                      ? 'bg-brand-rose text-brand-cream shadow-sm'
+                      : 'text-brand-cocoa/80 hover:bg-brand-beige/20 hover:text-brand-rose'
+                  }`}
+                >
+                  <span className="flex items-center space-x-2.5">
+                    <CheckCircle2 size={14} />
+                    <span>Completed Orders</span>
+                  </span>
+                  {completedOrders.length > 0 && (
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                      activeTab === 'completed-orders' ? 'bg-brand-cream text-brand-rose' : 'bg-brand-beige text-brand-cocoa'
+                    }`}>{completedOrders.length}</span>
                   )}
                 </button>
                 <button
@@ -517,47 +581,54 @@ export default function AdminDashboard() {
             <div className="space-y-8 animate-fade-in">
               
               {/* Summary Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-                <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-4 shadow-sm flex items-center space-x-3.5">
-                  <div className="p-2.5 bg-brand-sage/10 text-brand-sage rounded-full"><DollarSign size={18} /></div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3 sm:gap-4">
+                <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-3.5 shadow-sm flex items-center space-x-3">
+                  <div className="p-2 bg-brand-sage/10 text-brand-sage rounded-full"><DollarSign size={16} /></div>
                   <div>
-                    <span className="text-[10px] font-bold text-brand-cocoa/50 uppercase tracking-wider block">Revenue</span>
-                    <span className="text-lg font-bold text-brand-cocoa">₹{totalRevenue}</span>
+                    <span className="text-[9px] font-bold text-brand-cocoa/50 uppercase tracking-wider block">Revenue</span>
+                    <span className="text-base font-bold text-brand-cocoa">₹{totalRevenue}</span>
                   </div>
                 </div>
-                <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-4 shadow-sm flex items-center space-x-3.5">
-                  <div className="p-2.5 bg-brand-rose/10 text-brand-rose rounded-full"><ShoppingBag size={18} /></div>
+                <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-3.5 shadow-sm flex items-center space-x-3">
+                  <div className="p-2 bg-brand-rose/10 text-brand-rose rounded-full"><ShoppingBag size={16} /></div>
                   <div>
-                    <span className="text-[10px] font-bold text-brand-cocoa/50 uppercase tracking-wider block">Total Orders</span>
-                    <span className="text-lg font-bold text-brand-cocoa">{orders.length}</span>
+                    <span className="text-[9px] font-bold text-brand-cocoa/50 uppercase tracking-wider block">Active Orders</span>
+                    <span className="text-base font-bold text-brand-cocoa">{activeOrders.length}</span>
                   </div>
                 </div>
-                <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-4 shadow-sm flex items-center space-x-3.5">
-                  <div className="p-2.5 bg-rose-100 text-rose-700 rounded-full"><AlertTriangle size={18} /></div>
+                <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-3.5 shadow-sm flex items-center space-x-3">
+                  <div className="p-2 bg-emerald-100 text-emerald-700 rounded-full"><CheckCircle2 size={16} /></div>
                   <div>
-                    <span className="text-[10px] font-bold text-brand-cocoa/50 uppercase tracking-wider block">Awaiting Payment</span>
-                    <span className="text-lg font-bold text-brand-cocoa">{awaitingPaymentCount}</span>
+                    <span className="text-[9px] font-bold text-brand-cocoa/50 uppercase tracking-wider block">Completed</span>
+                    <span className="text-base font-bold text-brand-cocoa">{completedOrders.length}</span>
                   </div>
                 </div>
-                <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-4 shadow-sm flex items-center space-x-3.5">
-                  <div className="p-2.5 bg-amber-100 text-amber-700 rounded-full"><Clock size={18} /></div>
+                <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-3.5 shadow-sm flex items-center space-x-3">
+                  <div className="p-2 bg-rose-100 text-rose-700 rounded-full"><AlertTriangle size={16} /></div>
                   <div>
-                    <span className="text-[10px] font-bold text-brand-cocoa/50 uppercase tracking-wider block">Crafting Queue</span>
-                    <span className="text-lg font-bold text-brand-cocoa">{pendingCraftingCount}</span>
+                    <span className="text-[9px] font-bold text-brand-cocoa/50 uppercase tracking-wider block">Awaiting Pay</span>
+                    <span className="text-base font-bold text-brand-cocoa">{awaitingPaymentCount}</span>
                   </div>
                 </div>
-                <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-4 shadow-sm flex items-center space-x-3.5">
-                  <div className="p-2.5 bg-pink-100 text-pink-700 rounded-full"><Mail size={18} /></div>
+                <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-3.5 shadow-sm flex items-center space-x-3">
+                  <div className="p-2 bg-amber-100 text-amber-700 rounded-full"><Clock size={16} /></div>
                   <div>
-                    <span className="text-[10px] font-bold text-brand-cocoa/50 uppercase tracking-wider block">New Messages</span>
-                    <span className="text-lg font-bold text-brand-cocoa">{unreadMessagesCount}</span>
+                    <span className="text-[9px] font-bold text-brand-cocoa/50 uppercase tracking-wider block">Crafting Queue</span>
+                    <span className="text-base font-bold text-brand-cocoa">{pendingCraftingCount}</span>
                   </div>
                 </div>
-                <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-4 shadow-sm flex items-center space-x-3.5">
-                  <div className="p-2.5 bg-blue-100 text-blue-700 rounded-full"><Sparkles size={18} /></div>
+                <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-3.5 shadow-sm flex items-center space-x-3">
+                  <div className="p-2 bg-blue-100 text-blue-700 rounded-full"><Sparkles size={16} /></div>
                   <div>
-                    <span className="text-[10px] font-bold text-brand-cocoa/50 uppercase tracking-wider block">Custom Requests</span>
-                    <span className="text-lg font-bold text-brand-cocoa">{newCustomRequestsCount}</span>
+                    <span className="text-[9px] font-bold text-brand-cocoa/50 uppercase tracking-wider block">Requests</span>
+                    <span className="text-base font-bold text-brand-cocoa">{newCustomRequestsCount}</span>
+                  </div>
+                </div>
+                <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-3.5 shadow-sm flex items-center space-x-3">
+                  <div className="p-2 bg-pink-100 text-pink-700 rounded-full"><Mail size={16} /></div>
+                  <div>
+                    <span className="text-[9px] font-bold text-brand-cocoa/50 uppercase tracking-wider block">Messages</span>
+                    <span className="text-base font-bold text-brand-cocoa">{unreadMessagesCount}</span>
                   </div>
                 </div>
               </div>
@@ -568,20 +639,37 @@ export default function AdminDashboard() {
                 {/* Recent Orders List Preview */}
                 <div className="lg:col-span-7 bg-brand-offwhite border border-brand-beige rounded-lg p-5 shadow-sm space-y-4 flex flex-col justify-between">
                   <div className="flex items-center justify-between border-b border-brand-beige/50 pb-3">
-                    <h3 className="font-serif text-base font-bold text-brand-cocoa">Recent Orders</h3>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="font-serif text-base font-bold text-brand-cocoa">Active Recent Orders</h3>
+                      {activeOrders.length > 0 && (
+                        <span className="text-[10px] bg-brand-rose/10 text-brand-rose px-2 py-0.5 rounded-full font-bold">
+                          {activeOrders.length} active
+                        </span>
+                      )}
+                    </div>
                     <button
                       onClick={() => setActiveTab('orders')}
                       className="text-[10px] font-bold text-brand-rose hover:text-brand-cocoa uppercase tracking-wider flex items-center space-x-0.5 transition-colors"
                     >
-                      <span>View All Orders</span>
+                      <span>View Active Orders</span>
                       <ChevronRight size={12} />
                     </button>
                   </div>
 
-                  <div className="divide-y divide-brand-beige/20 overflow-x-auto min-h-[250px]">
+                  <div className="divide-y divide-brand-beige/20 overflow-x-auto min-h-[220px] flex flex-col justify-center">
                     {recentOrders.length === 0 ? (
-                      <div className="h-full flex items-center justify-center text-xs text-brand-cocoa/50 italic py-10">
-                        No orders yet.
+                      <div className="text-center py-8 space-y-2">
+                        <p className="text-xs font-semibold text-brand-cocoa">No active orders right now.</p>
+                        <p className="text-[11px] text-brand-cocoa/60">You're all caught up. New orders will appear here.</p>
+                        <div className="pt-2">
+                          <button
+                            onClick={() => setActiveTab('completed-orders')}
+                            className="text-xs font-bold text-brand-rose hover:text-brand-cocoa transition-colors inline-flex items-center space-x-1"
+                          >
+                            <span>View Completed Orders ({completedOrders.length})</span>
+                            <ChevronRight size={13} />
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <table className="w-full text-left border-collapse text-xs">
@@ -604,9 +692,7 @@ export default function AdminDashboard() {
                               <td className="py-2.5 text-brand-cocoa">{o.shipping_address.fullName}</td>
                               <td className="py-2.5 font-bold">₹{o.total}</td>
                               <td className="py-2.5">
-                                <span className={`px-2 py-0.5 rounded-sm text-[9px] uppercase font-bold ${
-                                  o.order_status === 'delivered' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                                }`}>
+                                <span className="px-2 py-0.5 rounded-sm text-[9px] uppercase font-bold bg-amber-100 text-amber-800">
                                   {orderStatusLabel(o.order_status)}
                                 </span>
                               </td>
@@ -1031,14 +1117,23 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* TAB: ORDERS */}
+          {/* TAB: ACTIVE ORDERS */}
           {activeTab === 'orders' && (
             <div className="space-y-6 animate-fade-in">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <h3 className="font-serif text-xl font-bold text-brand-cocoa">Manage Customer Orders</h3>
-                <p className="text-[11px] text-brand-cocoa/60 font-medium">
-                  Open an order to confirm payment, advance crafting, and add tracking.
-                </p>
+                <div>
+                  <h3 className="font-serif text-xl font-bold text-brand-cocoa">Active Customer Orders</h3>
+                  <p className="text-[11px] text-brand-cocoa/60 font-medium">
+                    Orders currently in progress. Once delivered, they will move to Completed Orders.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setActiveTab('completed-orders')}
+                  className="self-start sm:self-center text-xs font-bold text-brand-rose hover:text-brand-cocoa px-3 py-1.5 rounded border border-brand-rose/40 hover:border-brand-cocoa transition-colors flex items-center space-x-1"
+                >
+                  <CheckCircle2 size={13} />
+                  <span>View Completed Orders ({completedOrders.length})</span>
+                </button>
               </div>
 
               <div className="bg-brand-offwhite border border-brand-beige rounded-lg overflow-hidden shadow-sm overflow-x-auto">
@@ -1062,18 +1157,28 @@ export default function AdminDashboard() {
                       <tr>
                         <td colSpan={10} className="p-8 text-center text-xs text-brand-cocoa/50 italic">
                           <span className="inline-flex items-center gap-2">
-                            <Loader2 className="animate-spin" size={14} /> Loading orders...
+                            <Loader2 className="animate-spin" size={14} /> Loading active orders...
                           </span>
                         </td>
                       </tr>
-                    ) : orders.length === 0 ? (
+                    ) : activeOrders.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="p-8 text-center text-xs text-brand-cocoa/50 italic">
-                          No orders yet.
+                        <td colSpan={10} className="p-12 text-center text-xs text-brand-cocoa/70 space-y-2">
+                          <div className="font-serif text-base font-bold text-brand-cocoa">No active orders right now</div>
+                          <p className="text-brand-cocoa/60">You're all caught up. New orders will appear here.</p>
+                          <div className="pt-3">
+                            <button
+                              onClick={() => setActiveTab('completed-orders')}
+                              className="inline-flex items-center space-x-1.5 text-xs font-bold text-brand-rose hover:text-brand-cocoa transition-colors"
+                            >
+                              <span>View Completed Orders ({completedOrders.length})</span>
+                              <ChevronRight size={14} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ) : (
-                      orders.map((o) => (
+                      activeOrders.map((o) => (
                         <tr key={o.id} className="hover:bg-brand-beige/10 align-top">
                           <td className="p-4 font-serif font-bold text-brand-cocoa whitespace-nowrap">
                             <Link
@@ -1109,15 +1214,7 @@ export default function AdminDashboard() {
                             </span>
                           </td>
                           <td className="p-4">
-                            <span
-                              className={`px-2 py-1 rounded text-[9px] uppercase font-bold whitespace-nowrap ${
-                                o.order_status === 'delivered'
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : o.order_status === 'cancelled'
-                                  ? 'bg-rose-100 text-rose-800'
-                                  : 'bg-brand-beige/60 text-brand-cocoa'
-                              }`}
-                            >
+                            <span className="px-2 py-1 rounded text-[9px] uppercase font-bold whitespace-nowrap bg-brand-beige/60 text-brand-cocoa">
                               {orderStatusLabel(o.order_status)}
                             </span>
                           </td>
@@ -1146,6 +1243,185 @@ export default function AdminDashboard() {
                               className="inline-flex items-center gap-1 border border-brand-beige bg-brand-cream hover:bg-brand-rose hover:text-brand-cream text-brand-cocoa transition-colors font-bold text-[10px] uppercase tracking-wider py-2 px-3 rounded whitespace-nowrap"
                             >
                               Manage <ChevronRight size={11} />
+                            </Link>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: COMPLETED ORDERS */}
+          {activeTab === 'completed-orders' && (
+            <div className="space-y-6 animate-fade-in">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <h3 className="font-serif text-xl font-bold text-brand-cocoa">Completed Orders</h3>
+                  <p className="text-[11px] text-brand-cocoa/60 font-medium">
+                    Orders that have been successfully delivered to customers.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setActiveTab('orders')}
+                  className="self-start sm:self-center text-xs font-bold text-brand-rose hover:text-brand-cocoa px-3 py-1.5 rounded border border-brand-rose/40 hover:border-brand-cocoa transition-colors flex items-center space-x-1"
+                >
+                  <ShoppingBag size={13} />
+                  <span>View Active Orders ({activeOrders.length})</span>
+                </button>
+              </div>
+
+              {/* Filters & Search Toolbar */}
+              <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                {/* Search */}
+                <div className="relative w-full sm:w-72">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-cocoa/40" />
+                  <input
+                    type="text"
+                    value={completedSearch}
+                    onChange={(e) => setCompletedSearch(e.target.value)}
+                    placeholder="Search by Order ID, name, email..."
+                    className="w-full bg-brand-cream border border-brand-beige rounded pl-9 pr-3 py-2 text-xs focus:outline-none focus:border-brand-rose text-brand-cocoa placeholder-brand-cocoa/50 font-medium"
+                  />
+                  {completedSearch && (
+                    <button
+                      onClick={() => setCompletedSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-brand-cocoa/40 hover:text-brand-cocoa"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filters */}
+                <div className="flex items-center space-x-3 w-full sm:w-auto justify-end">
+                  <div className="flex items-center space-x-1.5">
+                    <Filter size={13} className="text-brand-cocoa/50" />
+                    <select
+                      value={completedDateFilter}
+                      onChange={(e) => setCompletedDateFilter(e.target.value as any)}
+                      className="bg-brand-cream border border-brand-beige rounded py-1.5 px-2.5 text-xs text-brand-cocoa font-semibold focus:outline-none focus:border-brand-rose"
+                    >
+                      <option value="all">All Time</option>
+                      <option value="today">Today</option>
+                      <option value="week">This Week</option>
+                      <option value="month">This Month</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center space-x-1.5">
+                    <ArrowUpDown size={13} className="text-brand-cocoa/50" />
+                    <select
+                      value={completedSort}
+                      onChange={(e) => setCompletedSort(e.target.value as any)}
+                      className="bg-brand-cream border border-brand-beige rounded py-1.5 px-2.5 text-xs text-brand-cocoa font-semibold focus:outline-none focus:border-brand-rose"
+                    >
+                      <option value="newest">Newest First</option>
+                      <option value="oldest">Oldest First</option>
+                      <option value="highest">Highest Value</option>
+                      <option value="lowest">Lowest Value</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="bg-brand-offwhite border border-brand-beige rounded-lg overflow-hidden shadow-sm overflow-x-auto">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-brand-beige/35 border-b border-brand-beige/70 text-xs font-bold uppercase tracking-wider text-brand-cocoa/60">
+                      <th className="p-4">Order ID</th>
+                      <th className="p-4">Customer</th>
+                      <th className="p-4">Order Date</th>
+                      <th className="p-4">Amount</th>
+                      <th className="p-4">Products</th>
+                      <th className="p-4">Delivery Date</th>
+                      <th className="p-4">Tracking Number</th>
+                      <th className="p-4">Status</th>
+                      <th className="p-4"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-brand-beige/30">
+                    {loadingOrders ? (
+                      <tr>
+                        <td colSpan={9} className="p-8 text-center text-xs text-brand-cocoa/50 italic">
+                          <span className="inline-flex items-center gap-2">
+                            <Loader2 className="animate-spin" size={14} /> Loading completed orders...
+                          </span>
+                        </td>
+                      </tr>
+                    ) : filteredCompletedOrders.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="p-12 text-center text-xs text-brand-cocoa/70 space-y-2">
+                          <div className="font-serif text-base font-bold text-brand-cocoa">No completed orders yet</div>
+                          <p className="text-brand-cocoa/60">Delivered orders will appear here once they're completed.</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredCompletedOrders.map((o) => (
+                        <tr key={o.id} className="hover:bg-brand-beige/10 align-top">
+                          <td className="p-4 font-serif font-bold text-brand-cocoa whitespace-nowrap">
+                            <Link
+                              href={`/admin/orders/${encodeURIComponent(o.id)}`}
+                              className="text-brand-rose hover:underline"
+                            >
+                              {o.id}
+                            </Link>
+                          </td>
+                          <td className="p-4 text-xs font-semibold">
+                            <div>{o.shipping_address.fullName}</div>
+                            <div className="text-[10px] text-brand-cocoa/60 font-normal">{o.shipping_address.email}</div>
+                          </td>
+                          <td className="p-4 text-xs text-brand-cocoa/70 whitespace-nowrap">
+                            {new Date(o.created_at).toLocaleDateString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </td>
+                          <td className="p-4 font-bold whitespace-nowrap">₹{o.total}</td>
+                          <td className="p-4 text-xs max-w-[14rem]">
+                            {o.items.map((item) => `${item.name} × ${item.quantity}`).join(', ')}
+                          </td>
+                          <td className="p-4 text-xs text-brand-cocoa/80 whitespace-nowrap font-medium">
+                            {o.delivered_at ? (
+                              new Date(o.delivered_at).toLocaleDateString('en-IN', {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric',
+                              })
+                            ) : o.updated_at ? (
+                              new Date(o.updated_at).toLocaleDateString('en-IN', {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric',
+                              })
+                            ) : (
+                              'Delivered'
+                            )}
+                          </td>
+                          <td className="p-4 text-xs whitespace-nowrap">
+                            {hasTrackingInfo(o) ? (
+                              <span className="text-emerald-700 font-medium">
+                                {o.carrier}: {o.tracking_number}
+                              </span>
+                            ) : (
+                              <span className="text-brand-cocoa/40 italic text-[11px]">—</span>
+                            )}
+                          </td>
+                          <td className="p-4">
+                            <span className="px-2.5 py-1 rounded-sm text-[9px] uppercase font-bold tracking-wider whitespace-nowrap bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              DELIVERED
+                            </span>
+                          </td>
+                          <td className="p-4">
+                            <Link
+                              href={`/admin/orders/${encodeURIComponent(o.id)}`}
+                              className="inline-flex items-center gap-1 border border-brand-beige bg-brand-cream hover:bg-brand-rose hover:text-brand-cream text-brand-cocoa transition-colors font-bold text-[10px] uppercase tracking-wider py-2 px-3 rounded whitespace-nowrap"
+                            >
+                              Details <ChevronRight size={11} />
                             </Link>
                           </td>
                         </tr>

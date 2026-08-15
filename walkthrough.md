@@ -1,6 +1,6 @@
 # Walkthrough: Neeshiartique Platform Refactoring
 
-This document outlines the complete changes made during the refactoring sessions to secure the platform, establish a crochet-only identity, prepare Supabase integrations, perform a comprehensive production security audit, implement a full Website Content Management System (CMS) for the homepage and artist profile, enforce role-aware navigation routes, and deploy the forgot password and update password flows.
+This document outlines the complete changes made during the refactoring sessions to secure the platform, establish a crochet-only identity, prepare Supabase integrations, perform a comprehensive production security audit, implement a full Website Content Management System (CMS) for the homepage and artist profile, enforce role-aware navigation routes, deploy the password recovery flow, and separate active orders from completed delivered orders.
 
 ---
 
@@ -42,65 +42,30 @@ This document outlines the complete changes made during the refactoring sessions
   - [`/api/messages`](file:///Users/sagar/Desktop/neeshita/src/app/api/messages/route.ts): Handles public contact form POST requests with server-side validations (names, subjects, emails, phone regex, sanitization) and retrieves filtered admin messages.
   - [`/api/messages/[id]`](file:///Users/sagar/Desktop/neeshita/src/app/api/messages/[id]/route.ts): Updates message statuses (read/unread) and handles message deletion.
 - **Admin Dashboard Overhaul**: Fully redesigned [`admin/page.tsx`](file:///Users/sagar/Desktop/neeshita/src/app/admin/page.tsx):
-  - Sidebar Navigation layout with Overview, Products, Orders, Custom Requests, Messages, Coupons.
+  - Sidebar Navigation layout with Overview, Products, Orders, Completed Orders, Custom Requests, Messages, Coupons.
   - Greeting block: "Good morning/afternoon/evening, Admin" (based on client time).
-  - Summary metric cards showing total sales revenue, orders count, crafting queue size, custom requests count, and unread customer messages count.
-  - Recent preview tables for orders, custom requests, and messages with direct navigation redirection.
-  - Product inventory overview: total products count, low stock (<5) warning count, and out of stock items count.
-  - Messages Inbox tab: Customer cards listing unread dots, email, date/time, and search/filter/sort parameters.
+  - Summary metric cards showing total sales revenue, active orders, completed orders, awaiting payment, crafting queue, custom requests count, and unread customer messages count.
+  - Recent preview tables for active orders, custom requests, and messages with direct navigation redirection.
   - Detail message modal overlay: Automatically marks messages as read on click, offers Mark Unread action, Reply Email (mailto client trigger), Reply WhatsApp (with polite prefilled prompt containing customer details), and Delete message confirmation prompt.
 
-### 🔌 Supabase Backend Integration Preparation
-Prepared Neeshiartique for a full Supabase migration (Auth, Database, Storage, RLS) without requiring active credentials during local verification:
-- **Client/Server Clients Split**:
-  - [`src/lib/supabase/client.ts`](file:///Users/sagar/Desktop/neeshita/src/lib/supabase/client.ts): Reusable Browser client for safe authenticated customer calls.
-  - [`src/lib/supabase/server.ts`](file:///Users/sagar/Desktop/neeshita/src/lib/supabase/server.ts): Cookie-authenticated server client for Server Components, Actions, and Routes.
-  - [`src/lib/supabase/serviceRole.ts`](file:///Users/sagar/Desktop/neeshita/src/lib/supabase/serviceRole.ts): Privileged client with client-side block guards to bypass RLS for admin operations on the server.
-- **SQL Migration Script**: Created [`supabase/migrations/20260815000000_schema.sql`](file:///Users/sagar/Desktop/neeshita/supabase/migrations/20260815000000_schema.sql) defining the PostgreSQL schema with triggers, indexes, and full Row Level Security (RLS) policies.
-- **Dynamic Local Mocks Fallback**: API endpoints detect if Supabase is configured; if missing, they fall back gracefully to secure local JSON database storage, keeping development fully active.
-- **Environment & Git Setup**: Added public and private configuration placeholders in [`.env.example`](file:///Users/sagar/Desktop/neeshita/.env.example) and protected secrets in `.gitignore`.
-
-### 🛡️ Production Security Hardening
-Completed a complete code audit and resolved potential security liabilities:
-- **Zod Input Schema Checks**: Integrated server-side validations inside [`src/lib/validation.ts`](file:///Users/sagar/Desktop/neeshita/src/lib/validation.ts) checking login, registration, contact messages, custom requests, and cart checkouts to block injection and mail/phone regex errors.
-- **Production Headers**: Updated [`next.config.ts`](file:///Users/sagar/Desktop/neeshita/next.config.ts) to inject standard X-Frame-Options (DENY), X-Content-Type-Options (nosniff), Referrer-Policy, and Permissions-Policy on all routes.
-- **Documentation**:
-  - [`SECURITY.md`](file:///Users/sagar/Desktop/neeshita/SECURITY.md): Explains the split architecture, user authentication, RLS models, and credential security.
-  - [`SUPABASE_SETUP.md`](file:///Users/sagar/Desktop/neeshita/SUPABASE_SETUP.md): Step-by-step setup guides for buckets, SQL migrations, and the admin user role.
-  - [`BACKEND_CHECKLIST.md`](file:///Users/sagar/Desktop/neeshita/BACKEND_CHECKLIST.md): Verification steps when connecting the live Supabase instance.
-  - [`SECURITY_AUDIT.md`](file:///Users/sagar/Desktop/neeshita/SECURITY_AUDIT.md): Detailed vulnerability assessments and mitigation report.
-
-### 🌐 Website Homepage & Artist CMS
-Designed and implemented a full structured CMS for managing the homepage sections and artist portfolio content dynamically without editing files:
-- **CMS Admin Pages**:
-  - [`/admin/homepage`](file:///Users/sagar/Desktop/neeshita/src/app/admin/homepage/page.tsx): Manage Hero content, Hero image uploads, Announcement text and status, Featured products ordering, Category headings, Custom request CTA content, Section Visibility toggles, and Display order stack. Features live component mockup preview.
-  - [`/admin/artist`](file:///Users/sagar/Desktop/neeshita/src/app/admin/artist/page.tsx): Edit artist details, photos, short introductory quotes, location, email, and biography chapters. Automatically synchronizes with the Homepage Meet the Artist section.
-- **Safe File Upload Router**: Created `/api/admin/upload` validating incoming uploads for MIME type (images only), size limits (max 5MB), path validation, and unique filename generation, mapping to Supabase Storage or local folders.
-- **Local Fallback Data**: Initialized JSON configs [`homepage_content.json`](file:///Users/sagar/Desktop/neeshita/src/data/homepage_content.json) and [`artist_profile.json`](file:///Users/sagar/Desktop/neeshita/src/data/artist_profile.json) with default content, enabling CMS operations out of the box in local fallback mode.
-- **SQL Migration**: Wrote [`20260815000100_homepage_cms.sql`](file:///Users/sagar/Desktop/neeshita/supabase/migrations/20260815000100_homepage_cms.sql) setting up the SQL tables, public read constraints, and admin-only RLS policies.
-
-### 👤 Role-Aware Dynamic Navigation Routing
-Resolved routing issue where administrators clicking the profile icon in the navigation bar were misdirected to the customer account page:
-- **Redirection Logic**: Updated [`Navbar.tsx`](file:///Users/sagar/Desktop/neeshita/src/components/Navbar.tsx) to evaluate the authenticated user's role dynamically:
-  - `admin` ➔ Routes to `/admin` dashboard.
-  - `customer` (or guest logging in) ➔ Routes to `/account` panel.
-- **Auth Modal Overwrite**: Refactored [`AuthModal.tsx`](file:///Users/sagar/Desktop/neeshita/src/components/AuthModal.tsx): if a guest logs in and has the `admin` role, they are redirected to `/admin` instead of proceeding to customer pages.
-- **Sidebar Containment**: Verified presentational sidebar components in `/admin` contain no links back to `/account`, keeping the admin contained inside the dashboard workspace.
-
-### 🔑 Built-in Supabase Password Reset Flow [NEW]
-Configured Forgot Password and Password Update flows utilizing Supabase Auth email systems and local mock databases:
-- **Recovery Gating Screen**: Created [`/forgot-password`](file:///Users/sagar/Desktop/neeshita/src/app/forgot-password/page.tsx) to submit email requests. In mock mode, triggers terminal mock links; in production, routes to `resetPasswordForEmail()`.
-- **Generic Responses**: Suppressed user enumeration by returning generic success states instead of disclosing database existence.
-- **Reset Page**: Created [`/update-password`](file:///Users/sagar/Desktop/neeshita/src/app/update-password/page.tsx) supporting 8-character checks and confirm validations, updating Supabase auth or local JSON database file configurations, and maintaining role integrity (guaranteeing roles are never modified during resets).
-- **Global Footer Developer Credit**: Updated [`Footer.tsx`](file:///Users/sagar/Desktop/neeshita/src/components/Footer.tsx) to feature the required credit:
-  *© 2026 Neeshiartique. All rights reserved. Crafted with ♡ by Sagar Patidar · @sagarpatidar05* linked to Instagram in a new tab.
+### 📦 Dedicated Completed Orders Management [NEW]
+Refactored the Admin Dashboard to separate active in-progress orders from delivered orders:
+- **Sidebar Organization**: Added `Completed Orders` under `STORE MANAGEMENT` with dynamic count badges.
+- **Active Orders View**: `/admin` Orders tab and `/admin/orders` now strictly display active in-progress orders. Delivered orders do not clutter the active workflow. Empty state features "No active orders right now" with quick link to Completed Orders.
+- **Completed Orders View**: Created dedicated [`/admin/orders/completed`](file:///Users/sagar/Desktop/neeshita/src/app/admin/orders/completed/page.tsx) and tab inside Admin Dashboard. Features:
+  - Customer info, order date, total, products list, delivery date, tracking information, and `DELIVERED` status badge.
+  - Search toolbar (Order ID, Customer name, Email).
+  - Date filter (All Time, Today, This Week, This Month).
+  - Sort selector (Newest, Oldest, Highest Value, Lowest Value).
+- **Metric Cards & Queries**: Overview statistics now explicitly show `ACTIVE ORDERS` and `COMPLETED ORDERS`. Historical revenue calculations preserve all paid orders regardless of delivery status.
+- **Server Filtering**: Updated [`/api/orders`](file:///Users/sagar/Desktop/neeshita/src/app/api/orders/route.ts) with `?status_group=active` and `?status_group=completed` query parameter support on Supabase and local JSON storage.
 
 ---
 
 ## 2. Verification Results
 
 ### TypeScript Type Safety
-`npx tsc --noEmit` runs successfully with exit code `0`. All layout params unwrapping and module references are fully typecheck-compliant.
+`npx tsc --noEmit` runs successfully with exit code `0`.
 
 ### Optimized Webpack Production Build
 Production compiler output verifying webpack compilation and page optimization completes cleanly:
@@ -108,10 +73,10 @@ Production compiler output verifying webpack compilation and page optimization c
 ```bash
 ▲ Next.js 16.3.1 (webpack)
 Creating an optimized production build ...
-✓ Compiled successfully in 2.5s
+✓ Compiled successfully in 2.1s
 Running TypeScript ...
-Finished TypeScript in 1861ms ...
-Generating static pages (37/37) in 157ms
+Finished TypeScript in 1932ms ...
+Generating static pages (39/39) in 239ms
 Finalizing page optimization ...
 Collecting build traces ...
 ```

@@ -14,11 +14,15 @@ import { CheckoutSchema } from '@/lib/validation';
 const sanitize = (value: string) => value.replace(/</g, '&lt;').replace(/>/g, '&gt;').trim();
 
 // GET: Admins see every order; customers see only their own
-export async function GET() {
+export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user) {
     return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
   }
+
+  const { searchParams } = new URL(request.url);
+  const statusGroup = searchParams.get('status_group'); // 'active' | 'completed'
+  const statusParam = searchParams.get('status');
 
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -42,6 +46,16 @@ export async function GET() {
           return NextResponse.json({ success: true, orders: [] });
         }
         query = query.eq('customer_id', profile.id);
+      }
+
+      if (statusGroup === 'active') {
+        query = query.neq('order_status', 'delivered');
+      } else if (statusGroup === 'completed') {
+        query = query.eq('order_status', 'delivered');
+      }
+
+      if (statusParam) {
+        query = query.eq('order_status', statusParam);
       }
 
       query = query.order('created_at', { ascending: false });
@@ -88,10 +102,20 @@ export async function GET() {
 
     // 2. Fallback Mode: Fetch from local JSON simulated database
     const orders = readOrders();
-    const visible =
+    let visible =
       user.role === 'admin'
         ? orders
         : orders.filter((o) => o.customer_id === customerIdFor(user));
+
+    if (statusGroup === 'active') {
+      visible = visible.filter((o) => o.order_status !== 'delivered');
+    } else if (statusGroup === 'completed') {
+      visible = visible.filter((o) => o.order_status === 'delivered');
+    }
+
+    if (statusParam) {
+      visible = visible.filter((o) => o.order_status === statusParam);
+    }
 
     visible.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 

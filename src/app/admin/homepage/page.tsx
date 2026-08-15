@@ -26,7 +26,9 @@ import {
   Trash2,
   Eye,
   EyeOff,
-  AlertTriangle
+  AlertTriangle,
+  CheckCircle2,
+  Mail
 } from 'lucide-react';
 
 export default function AdminHomepageContent() {
@@ -400,6 +402,34 @@ export default function AdminHomepageContent() {
                 >
                   <Package size={14} />
                   <span>Products</span>
+                </button>
+                <button
+                  onClick={() => handleNav('/admin')}
+                  className="w-full flex items-center space-x-2.5 py-2 px-3 rounded text-xs font-bold transition-all text-brand-cocoa/80 hover:bg-brand-beige/20 hover:text-brand-rose"
+                >
+                  <ShoppingBag size={14} />
+                  <span>Orders</span>
+                </button>
+                <button
+                  onClick={() => handleNav('/admin/orders/completed')}
+                  className="w-full flex items-center space-x-2.5 py-2 px-3 rounded text-xs font-bold transition-all text-brand-cocoa/80 hover:bg-brand-beige/20 hover:text-brand-rose"
+                >
+                  <CheckCircle2 size={14} />
+                  <span>Completed Orders</span>
+                </button>
+                <button
+                  onClick={() => handleNav('/admin')}
+                  className="w-full flex items-center space-x-2.5 py-2 px-3 rounded text-xs font-bold transition-all text-brand-cocoa/80 hover:bg-brand-beige/20 hover:text-brand-rose"
+                >
+                  <Sparkles size={14} />
+                  <span>Custom Requests</span>
+                </button>
+                <button
+                  onClick={() => handleNav('/admin')}
+                  className="w-full flex items-center space-x-2.5 py-2 px-3 rounded text-xs font-bold transition-all text-brand-cocoa/80 hover:bg-brand-beige/20 hover:text-brand-rose"
+                >
+                  <Mail size={14} />
+                  <span>Messages</span>
                 </button>
               </div>
 
