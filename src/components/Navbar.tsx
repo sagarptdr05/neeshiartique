@@ -64,7 +64,6 @@ export default function Navbar() {
     { label: 'Home', href: '/' },
     { label: 'Shop', href: '/shop' },
     { label: 'Custom Crochet', href: '/custom-orders' },
-    { label: 'Meet the Artist', href: '/artist' },
     { label: 'About Us', href: '/about' },
     { label: 'Gallery', href: '/gallery' },
     { label: 'Contact', href: '/contact' },
