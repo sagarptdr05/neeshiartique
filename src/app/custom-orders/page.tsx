@@ -30,15 +30,17 @@ export default function CustomOrders() {
   // Submit states
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !email.trim() || !phone.trim() || !customizationDetails.trim()) return;
 
     setLoading(true);
+    setError('');
 
-    setTimeout(() => {
-      submitCustomOrder({
+    try {
+      const res = await submitCustomOrder({
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim(),
@@ -48,25 +50,31 @@ export default function CustomOrders() {
         quantity: Number(quantity),
         budgetRange,
         customizationDetails: customizationDetails.trim(),
-        requiredDate: requiredDate || 'Flexible',
+        requiredDate: requiredDate || new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0], // default 1 week out
         referenceImage: refImage || undefined,
         message: message.trim() || undefined,
       });
 
       setLoading(false);
-      setFormSubmitted(true);
-      
-      // Reset form fields
-      setName('');
-      setEmail('');
-      setPhone('');
-      setPreferredColor('');
-      setQuantity(1);
-      setCustomizationDetails('');
-      setRequiredDate('');
-      setRefImage('');
-      setMessage('');
-    }, 1000);
+      if (res.success) {
+        setFormSubmitted(true);
+        // Reset form fields
+        setName('');
+        setEmail('');
+        setPhone('');
+        setPreferredColor('');
+        setQuantity(1);
+        setCustomizationDetails('');
+        setRequiredDate('');
+        setRefImage('');
+        setMessage('');
+      } else {
+        setError(res.message || 'Something went wrong. Please check your inputs and try again.');
+      }
+    } catch (err) {
+      setLoading(false);
+      setError('A connection error occurred. Please try again.');
+    }
   };
 
   return (
@@ -318,6 +326,12 @@ export default function CustomOrders() {
                   className="w-full bg-brand-cream border border-brand-beige rounded-md p-3.5 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa placeholder-brand-cocoa/40"
                 />
               </div>
+
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 text-xs px-4 py-3 rounded mb-4">
+                  {error}
+                </div>
+              )}
 
               {/* Submit trigger button */}
               <div className="pt-4 border-t border-brand-beige/50">

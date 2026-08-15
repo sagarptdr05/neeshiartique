@@ -1,8 +1,94 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
+  
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  // Mode 1: Supabase Session Verification (If credentials configured)
+  if (supabaseUrl && supabaseAnonKey) {
+    let response = NextResponse.next({
+      request: {
+        headers: request.headers,
+      },
+    });
+
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
+        },
+      },
+    });
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      // Protect /admin routes
+      if (path.startsWith('/admin')) {
+        if (!user) {
+          return NextResponse.redirect(new URL(`/login?redirect=${encodeURIComponent(path)}`, request.url));
+        }
+
+        // Fetch role from profiles table
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('auth_user_id', user.id)
+          .single();
+
+        if (!profile || profile.role !== 'admin') {
+          return NextResponse.redirect(new URL('/account', request.url));
+        }
+      }
+
+      // Protect gated customer routes
+      const gatedPaths = ['/account', '/wishlist', '/custom-orders', '/checkout', '/track-order', '/order-received'];
+      const isGated = gatedPaths.some(p => path.startsWith(p));
+      if (isGated) {
+        if (!user) {
+          return NextResponse.redirect(new URL(`/login?redirect=${encodeURIComponent(path)}`, request.url));
+        }
+      }
+
+      // Redirect authenticated users trying to access login/register
+      if (path === '/login' || path === '/register') {
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('auth_user_id', user.id)
+            .single();
+
+          if (profile?.role === 'admin') {
+            return NextResponse.redirect(new URL('/admin', request.url));
+          } else {
+            return NextResponse.redirect(new URL('/account', request.url));
+          }
+        }
+      }
+
+      return response;
+    } catch (err) {
+      console.error('Supabase middleware auth exception:', err);
+    }
+  }
+
+  // Mode 2: Local Session Fallback (If Supabase NOT configured)
   const session = request.cookies.get('neeshi_session');
 
   // Protect /admin routes
@@ -13,7 +99,6 @@ export function middleware(request: NextRequest) {
     try {
       const decoded = JSON.parse(Buffer.from(session.value, 'base64').toString('utf8'));
       if (decoded.role !== 'admin') {
-        // Redirection to account if role is not admin
         return NextResponse.redirect(new URL('/account', request.url));
       }
     } catch (e) {
@@ -41,7 +126,7 @@ export function middleware(request: NextRequest) {
           return NextResponse.redirect(new URL('/account', request.url));
         }
       } catch (e) {
-        // Continue if corrupt
+        // Fall through on corrupt cookie
       }
     }
   }
@@ -49,7 +134,6 @@ export function middleware(request: NextRequest) {
   return NextResponse.next();
 }
 
-// Configure routes middleware runs on
 export const config = {
   matcher: [
     '/admin/:path*',

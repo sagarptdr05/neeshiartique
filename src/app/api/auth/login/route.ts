@@ -2,15 +2,49 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import fs from 'fs';
 import path from 'path';
+import { createServerClient } from '@/lib/supabase/server';
+import { LoginSchema } from '@/lib/validation';
 
 export async function POST(request: Request) {
   try {
-    const { email, password } = await request.json();
-    if (!email || !password) {
-      return NextResponse.json({ success: false, message: 'Email and password are required' }, { status: 400 });
+    // 1. Server-side validation using Zod
+    const body = await request.json();
+    const result = LoginSchema.safeParse(body);
+    if (!result.success) {
+      const errorMsg = result.error.issues.map((e: any) => e.message).join(', ');
+      return NextResponse.json({ success: false, message: errorMsg }, { status: 400 });
     }
 
-    // Read simulated database file
+    const { email, password } = result.data;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    // 2. Dynamic Mode: Supabase Auth (If credentials configured)
+    if (supabaseUrl && supabaseAnonKey) {
+      const supabase = await createServerClient();
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error || !data.user) {
+        return NextResponse.json(
+          { success: false, message: error?.message || 'Invalid email or password' },
+          { status: 401 }
+        );
+      }
+
+      // Fetch user profile to return role to client
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('auth_user_id', data.user.id)
+        .single();
+
+      return NextResponse.json({ success: true, role: profile?.role || 'customer' });
+    }
+
+    // 3. Fallback Mode: Local simulated JSON database
     const filePath = path.join(process.cwd(), 'src/data/users.json');
     let users = [];
     if (fs.existsSync(filePath)) {
@@ -26,7 +60,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'Invalid email or password' }, { status: 401 });
     }
 
-    // Set secure session cookie
+    // Set secure fallback session cookie
     const sessionData = {
       name: user.name,
       email: user.email,

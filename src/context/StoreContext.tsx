@@ -70,8 +70,8 @@ interface StoreContextType {
   ) => Promise<OrderMutationResult>;
 
   // Custom Order handlers
-  submitCustomOrder: (request: Omit<CustomOrderRequest, 'id' | 'created_at' | 'status'>) => void;
-  updateCustomOrderStatus: (id: string, status: CustomOrderRequest['status']) => void;
+  submitCustomOrder: (request: Omit<CustomOrderRequest, 'id' | 'created_at' | 'status'>) => Promise<{ success: boolean; message?: string }>;
+  updateCustomOrderStatus: (id: string, status: CustomOrderRequest['status']) => Promise<{ success: boolean; message?: string }>;
   
   // Review handlers
   submitReview: (review: Omit<Review, 'id' | 'date' | 'approved'>) => void;
@@ -240,16 +240,29 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const refreshCustomOrders = async () => {
+    try {
+      const res = await fetch('/api/custom-orders');
+      const data = await res.json();
+      setCustomOrders(res.ok && data.success ? data.customOrders : []);
+    } catch (err) {
+      console.error('Failed to load custom orders:', err);
+      setCustomOrders([]);
+    }
+  };
+
   // Reload whenever the signed-in account changes, so a customer never sees
   // orders left over from a previous session.
   useEffect(() => {
     if (loadingAuth) return;
     if (!user) {
       setOrders([]);
+      setCustomOrders([]);
       setLoadingOrders(false);
       return;
     }
     refreshOrders();
+    refreshCustomOrders();
   }, [user?.email, loadingAuth]);
 
   const placeOrder = async (input: PlaceOrderInput): Promise<OrderMutationResult> => {
@@ -301,22 +314,42 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Custom Order Actions
-  const submitCustomOrder = (newReq: Omit<CustomOrderRequest, 'id' | 'created_at' | 'status'>) => {
-    const req: CustomOrderRequest = {
-      ...newReq,
-      id: `REQ-${Math.floor(1000 + Math.random() * 9000)}`,
-      status: 'new',
-      created_at: new Date().toISOString(),
-    };
-    const updated = [req, ...customOrders];
-    setCustomOrders(updated);
-    syncLocal('neeshi_custom_orders', updated);
+  const submitCustomOrder = async (newReq: Omit<CustomOrderRequest, 'id' | 'created_at' | 'status'>) => {
+    try {
+      const res = await fetch('/api/custom-orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newReq),
+      });
+      const data = await res.json();
+      if (data.success && data.customOrder) {
+        setCustomOrders((prev) => [data.customOrder, ...prev]);
+        return { success: true };
+      }
+      return { success: false, message: data.message || 'Failed to submit request.' };
+    } catch (err) {
+      console.error('Failed to submit custom order:', err);
+      return { success: false, message: 'Connection error. Please try again.' };
+    }
   };
 
-  const updateCustomOrderStatus = (id: string, status: CustomOrderRequest['status']) => {
-    const updated = customOrders.map((co) => (co.id === id ? { ...co, status } : co));
-    setCustomOrders(updated);
-    syncLocal('neeshi_custom_orders', updated);
+  const updateCustomOrderStatus = async (id: string, status: CustomOrderRequest['status']) => {
+    try {
+      const res = await fetch(`/api/custom-orders/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      const data = await res.json();
+      if (data.success && data.customOrder) {
+        setCustomOrders((prev) => prev.map((co) => (co.id === id ? data.customOrder : co)));
+        return { success: true };
+      }
+      return { success: false, message: data.message };
+    } catch (err) {
+      console.error('Failed to update custom order status:', err);
+      return { success: false };
+    }
   };
 
   // Review Actions

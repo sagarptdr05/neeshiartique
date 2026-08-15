@@ -1,24 +1,13 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import fs from 'fs';
 import path from 'path';
-
-// Helper to check admin authorization server-side
-async function isAdminAuthorized() {
-  const cookieStore = await cookies();
-  const session = cookieStore.get('neeshi_session');
-  if (!session || !session.value) return false;
-  try {
-    const sessionData = JSON.parse(Buffer.from(session.value, 'base64').toString('utf8'));
-    return sessionData.role === 'admin';
-  } catch (e) {
-    return false;
-  }
-}
+import { createServerClient } from '@/lib/supabase/server';
+import { isAdmin } from '@/lib/session';
+import { ContactFormSchema } from '@/lib/validation';
 
 // GET: Fetch contact messages (Admin only)
 export async function GET(request: Request) {
-  const authorized = await isAdminAuthorized();
+  const authorized = await isAdmin();
   if (!authorized) {
     return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 403 });
   }
@@ -29,6 +18,36 @@ export async function GET(request: Request) {
     const search = searchParams.get('search') || '';
     const sort = searchParams.get('sort') || 'newest'; // newest, oldest
 
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    // 1. Dynamic Mode: Fetch from Supabase contact_messages table
+    if (supabaseUrl && supabaseAnonKey) {
+      const supabase = await createServerClient();
+      let query = supabase.from('contact_messages').select('*');
+
+      if (filter === 'read') {
+        query = query.eq('status', 'read');
+      } else if (filter === 'unread') {
+        query = query.eq('status', 'unread');
+      }
+
+      if (search.trim()) {
+        const term = `%${search.trim().toLowerCase()}%`;
+        query = query.or(`name.ilike.${term},email.ilike.${term},subject.ilike.${term},message.ilike.${term}`);
+      }
+
+      query = query.order('created_at', { ascending: sort !== 'newest' });
+
+      const { data: messages, error } = await query;
+      if (error) {
+        return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, messages });
+    }
+
+    // 2. Fallback Mode: Fetch from local JSON simulated database
     const filePath = path.join(process.cwd(), 'src/data/messages.json');
     let messages = [];
 
@@ -74,47 +93,38 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, email, phone, subject, message } = body;
+    
+    // Server-side validation using Zod
+    const result = ContactFormSchema.safeParse(body);
+    if (!result.success) {
+      const errorMsg = result.error.issues.map((e: any) => e.message).join(', ');
+      return NextResponse.json({ success: false, message: errorMsg }, { status: 400 });
+    }
 
-    // Server-side validation
-    if (!name || !name.trim()) {
-      return NextResponse.json({ success: false, message: 'Name is required' }, { status: 400 });
-    }
-    if (!email || !email.trim()) {
-      return NextResponse.json({ success: false, message: 'Email is required' }, { status: 400 });
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-      return NextResponse.json({ success: false, message: 'Please provide a valid email address' }, { status: 400 });
-    }
-    if (phone && phone.trim()) {
-      const phoneRegex = /^[+]?[0-9\s-]{7,15}$/;
-      if (!phoneRegex.test(phone.trim())) {
-        return NextResponse.json({ success: false, message: 'Please provide a valid phone number' }, { status: 400 });
+    const { name, email, phone, subject, message } = result.data;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    // 1. Dynamic Mode: Insert into Supabase contact_messages table
+    if (supabaseUrl && supabaseAnonKey) {
+      const supabase = await createServerClient();
+      const { data, error } = await supabase.from('contact_messages').insert({
+        name,
+        email,
+        phone,
+        subject,
+        message,
+        status: 'unread',
+      }).select();
+
+      if (error) {
+        return NextResponse.json({ success: false, message: error.message }, { status: 500 });
       }
-    }
-    if (!subject || !subject.trim()) {
-      return NextResponse.json({ success: false, message: 'Subject is required' }, { status: 400 });
-    }
-    if (!message || !message.trim()) {
-      return NextResponse.json({ success: false, message: 'Message content is required' }, { status: 400 });
+
+      return NextResponse.json({ success: true, message: 'Your message has been received! We will get back to you soon. ♡' });
     }
 
-    // Sanitize user inputs to prevent injection / XSS
-    const sanitize = (str: string) => str.replace(/</g, '&lt;').replace(/>/g, '&gt;').trim();
-
-    const newMessage = {
-      id: `msg-${Date.now().toString()}`,
-      name: sanitize(name),
-      email: sanitize(email),
-      phone: phone ? sanitize(phone) : '',
-      subject: sanitize(subject),
-      message: sanitize(message),
-      status: 'unread',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
+    // 2. Fallback Mode: Write to local messages.json simulated database
     const filePath = path.join(process.cwd(), 'src/data/messages.json');
     let messages = [];
 
@@ -123,15 +133,24 @@ export async function POST(request: Request) {
       messages = JSON.parse(data);
     }
 
+    const newMessage = {
+      id: `msg-${Date.now()}`,
+      name,
+      email,
+      phone,
+      subject,
+      message,
+      status: 'unread',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
     messages.push(newMessage);
     fs.writeFileSync(filePath, JSON.stringify(messages, null, 2), 'utf8');
 
-    return NextResponse.json({
-      success: true,
-      message: "Thank you for reaching out. ♡\nYour message has been received. We'll get back to you soon.",
-    });
+    return NextResponse.json({ success: true, message: 'Your message has been received! We will get back to you soon. ♡' });
   } catch (error) {
-    console.error('Submit contact message API error:', error);
-    return NextResponse.json({ success: false, message: 'Failed to save message. Internal server error.' }, { status: 500 });
+    console.error('Submit message API error:', error);
+    return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });
   }
 }
