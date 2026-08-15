@@ -1,0 +1,35 @@
+[
+  {
+    "id": "msg-101",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "phone": "6388992271",
+    "subject": "Question about Custom Crochet Gift",
+    "message": "Hi, I wanted to know if you can craft a customized set of two lavender flower bookmarks wrapped in a gift box with a pink ribbon for my daughter's birthday next week. Please let me know if this is possible and what the pricing would be.",
+    "status": "unread",
+    "created_at": "2026-08-15T10:15:00.000Z",
+    "updated_at": "2026-08-15T10:15:00.000Z"
+  },
+  {
+    "id": "msg-102",
+    "name": "Sarah Miller",
+    "email": "sarah.m@example.com",
+    "phone": "9988776655",
+    "subject": "Bulk Keychain Order",
+    "message": "Hi Neeshita, I love your butterfly keychains! Can we order 25 butterfly keychains in mixed pastel colors for a bridal shower party? What is the preparation time?",
+    "status": "unread",
+    "created_at": "2026-08-14T14:30:00.000Z",
+    "updated_at": "2026-08-14T14:30:00.000Z"
+  },
+  {
+    "id": "msg-103",
+    "name": "Rohit Sharma",
+    "email": "rohit@example.com",
+    "phone": "8877665544",
+    "subject": "Collaborations",
+    "message": "Hello, do you accept corporate gifting orders or custom wholesale designs for small cafes? I would love to place a bulk order of small pocket crochet cups.",
+    "status": "read",
+    "created_at": "2026-08-13T09:00:00.000Z",
+    "updated_at": "2026-08-13T09:00:00.000Z"
+  }
+]

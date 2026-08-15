@@ -39,19 +39,39 @@ export default function Contact() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !email.trim() || !message.trim()) return;
 
     setLoading(true);
     setError(null);
+    setSuccess(false);
 
-    setTimeout(() => {
-      setLoading(false);
-      
-      // Since no email backend or server action is configured, trigger error to avoid falsely claiming message delivery.
-      setError(`Message delivery is unavailable because no email or backend service is configured. Please reach out directly via Email (${BRAND_CONFIG.email}) or WhatsApp at ${BRAND_CONFIG.phoneFormatted}.`);
-    }, 1000);
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, phone, subject, message }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSuccess(true);
+        setName('');
+        setEmail('');
+        setPhone('');
+        setSubject('');
+        setMessage('');
+      } else {
+        setError(data.message || "We couldn't send your message right now. Please try again or contact us directly on WhatsApp.");
+      }
+    } catch (err) {
+      setError("We couldn't send your message right now. Please try again or contact us directly on WhatsApp.");
+    } finally {
+      // Small artificial delay for visual feedback
+      setTimeout(() => {
+        setLoading(false);
+      }, 300);
+    }
   };
 
   return (
@@ -90,7 +110,7 @@ export default function Contact() {
             Let's Keep in Touch
           </h2>
           <p className="text-sm text-brand-cocoa/80 leading-relaxed">
-            Have a question about a crochet keychain, a canvas art piece, or shipping? Feel free to contact us through any of the options below. We love chat letters!
+            Have a question about a crochet creation, custom order, or shipping? Feel free to contact us through any of the options below. We'd love to hear from you!
           </p>
 
           <div className="space-y-4 pt-4">
