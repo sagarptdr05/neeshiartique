@@ -1,6 +1,6 @@
 # Walkthrough: Neeshiartique Platform Refactoring
 
-This document outlines the complete changes made during the refactoring sessions to secure the platform, establish a crochet-only identity, prepare Supabase integrations, perform a comprehensive production security audit, implement a full Website Content Management System (CMS) for the homepage and artist profile, and enforce role-aware navigation routes.
+This document outlines the complete changes made during the refactoring sessions to secure the platform, establish a crochet-only identity, prepare Supabase integrations, perform a comprehensive production security audit, implement a full Website Content Management System (CMS) for the homepage and artist profile, enforce role-aware navigation routes, and deploy the forgot password and update password flows.
 
 ---
 
@@ -79,13 +79,21 @@ Designed and implemented a full structured CMS for managing the homepage section
 - **Local Fallback Data**: Initialized JSON configs [`homepage_content.json`](file:///Users/sagar/Desktop/neeshita/src/data/homepage_content.json) and [`artist_profile.json`](file:///Users/sagar/Desktop/neeshita/src/data/artist_profile.json) with default content, enabling CMS operations out of the box in local fallback mode.
 - **SQL Migration**: Wrote [`20260815000100_homepage_cms.sql`](file:///Users/sagar/Desktop/neeshita/supabase/migrations/20260815000100_homepage_cms.sql) setting up the SQL tables, public read constraints, and admin-only RLS policies.
 
-### 👤 Role-Aware Dynamic Navigation Routing [NEW]
+### 👤 Role-Aware Dynamic Navigation Routing
 Resolved routing issue where administrators clicking the profile icon in the navigation bar were misdirected to the customer account page:
 - **Redirection Logic**: Updated [`Navbar.tsx`](file:///Users/sagar/Desktop/neeshita/src/components/Navbar.tsx) to evaluate the authenticated user's role dynamically:
   - `admin` ➔ Routes to `/admin` dashboard.
   - `customer` (or guest logging in) ➔ Routes to `/account` panel.
 - **Auth Modal Overwrite**: Refactored [`AuthModal.tsx`](file:///Users/sagar/Desktop/neeshita/src/components/AuthModal.tsx): if a guest logs in and has the `admin` role, they are redirected to `/admin` instead of proceeding to customer pages.
 - **Sidebar Containment**: Verified presentational sidebar components in `/admin` contain no links back to `/account`, keeping the admin contained inside the dashboard workspace.
+
+### 🔑 Built-in Supabase Password Reset Flow [NEW]
+Configured Forgot Password and Password Update flows utilizing Supabase Auth email systems and local mock databases:
+- **Recovery Gating Screen**: Created [`/forgot-password`](file:///Users/sagar/Desktop/neeshita/src/app/forgot-password/page.tsx) to submit email requests. In mock mode, triggers terminal mock links; in production, routes to `resetPasswordForEmail()`.
+- **Generic Responses**: Suppressed user enumeration by returning generic success states instead of disclosing database existence.
+- **Reset Page**: Created [`/update-password`](file:///Users/sagar/Desktop/neeshita/src/app/update-password/page.tsx) supporting 8-character checks and confirm validations, updating Supabase auth or local JSON database file configurations, and maintaining role integrity (guaranteeing roles are never modified during resets).
+- **Global Footer Developer Credit**: Updated [`Footer.tsx`](file:///Users/sagar/Desktop/neeshita/src/components/Footer.tsx) to feature the required credit:
+  *© 2026 Neeshiartique. All rights reserved. Crafted with ♡ by Sagar Patidar · @sagarpatidar05* linked to Instagram in a new tab.
 
 ---
 
@@ -100,10 +108,10 @@ Production compiler output verifying webpack compilation and page optimization c
 ```bash
 ▲ Next.js 16.3.1 (webpack)
 Creating an optimized production build ...
-✓ Compiled successfully in 1.6s
+✓ Compiled successfully in 2.5s
 Running TypeScript ...
-Finished TypeScript in 851ms ...
-Generating static pages (33/33) in 177ms
+Finished TypeScript in 1861ms ...
+Generating static pages (37/37) in 157ms
 Finalizing page optimization ...
 Collecting build traces ...
 ```
