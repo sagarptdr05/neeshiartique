@@ -152,8 +152,8 @@ export default function Navbar() {
 
             {/* Account Link */}
             <Link
-              href="/account"
-              onClick={(e) => handleNavClick(e, '/account')}
+              href={user?.role === 'admin' ? '/admin' : '/account'}
+              onClick={(e) => handleNavClick(e, user?.role === 'admin' ? '/admin' : '/account')}
               className="p-1.5 text-brand-cocoa hover:text-brand-rose transition-colors"
               aria-label="My Account"
             >

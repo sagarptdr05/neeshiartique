@@ -6,6 +6,7 @@ import { X, Lock, Mail, User, Phone, Loader2, ArrowRight } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 
 export default function AuthModal() {
+  const router = useRouter();
   const {
     showAuthModal,
     setShowAuthModal,
@@ -55,8 +56,9 @@ export default function AuthModal() {
       if (response.ok && data.success) {
         await checkSession();
         setShowAuthModal(false);
-        // Execute the deferred action (e.g. adding item to cart)
-        if (authRedirectAction) {
+        if (data.role === 'admin') {
+          router.push('/admin');
+        } else if (authRedirectAction) {
           authRedirectAction();
         }
         setAuthRedirectAction(null);
