@@ -1,6 +1,6 @@
 # Walkthrough: Neeshiartique Platform Refactoring
 
-This document outlines the complete changes made during the refactoring sessions to secure the platform, establish a crochet-only identity, prepare Supabase integrations, perform a comprehensive production security audit, and implement a full Website Content Management System (CMS) for the homepage and artist profile.
+This document outlines the complete changes made during the refactoring sessions to secure the platform, establish a crochet-only identity, prepare Supabase integrations, perform a comprehensive production security audit, implement a full Website Content Management System (CMS) for the homepage and artist profile, and enforce role-aware navigation routes.
 
 ---
 
@@ -70,7 +70,7 @@ Completed a complete code audit and resolved potential security liabilities:
   - [`BACKEND_CHECKLIST.md`](file:///Users/sagar/Desktop/neeshita/BACKEND_CHECKLIST.md): Verification steps when connecting the live Supabase instance.
   - [`SECURITY_AUDIT.md`](file:///Users/sagar/Desktop/neeshita/SECURITY_AUDIT.md): Detailed vulnerability assessments and mitigation report.
 
-### 🌐 Website Homepage & Artist CMS [NEW]
+### 🌐 Website Homepage & Artist CMS
 Designed and implemented a full structured CMS for managing the homepage sections and artist portfolio content dynamically without editing files:
 - **CMS Admin Pages**:
   - [`/admin/homepage`](file:///Users/sagar/Desktop/neeshita/src/app/admin/homepage/page.tsx): Manage Hero content, Hero image uploads, Announcement text and status, Featured products ordering, Category headings, Custom request CTA content, Section Visibility toggles, and Display order stack. Features live component mockup preview.
@@ -78,6 +78,14 @@ Designed and implemented a full structured CMS for managing the homepage section
 - **Safe File Upload Router**: Created `/api/admin/upload` validating incoming uploads for MIME type (images only), size limits (max 5MB), path validation, and unique filename generation, mapping to Supabase Storage or local folders.
 - **Local Fallback Data**: Initialized JSON configs [`homepage_content.json`](file:///Users/sagar/Desktop/neeshita/src/data/homepage_content.json) and [`artist_profile.json`](file:///Users/sagar/Desktop/neeshita/src/data/artist_profile.json) with default content, enabling CMS operations out of the box in local fallback mode.
 - **SQL Migration**: Wrote [`20260815000100_homepage_cms.sql`](file:///Users/sagar/Desktop/neeshita/supabase/migrations/20260815000100_homepage_cms.sql) setting up the SQL tables, public read constraints, and admin-only RLS policies.
+
+### 👤 Role-Aware Dynamic Navigation Routing [NEW]
+Resolved routing issue where administrators clicking the profile icon in the navigation bar were misdirected to the customer account page:
+- **Redirection Logic**: Updated [`Navbar.tsx`](file:///Users/sagar/Desktop/neeshita/src/components/Navbar.tsx) to evaluate the authenticated user's role dynamically:
+  - `admin` ➔ Routes to `/admin` dashboard.
+  - `customer` (or guest logging in) ➔ Routes to `/account` panel.
+- **Auth Modal Overwrite**: Refactored [`AuthModal.tsx`](file:///Users/sagar/Desktop/neeshita/src/components/AuthModal.tsx): if a guest logs in and has the `admin` role, they are redirected to `/admin` instead of proceeding to customer pages.
+- **Sidebar Containment**: Verified presentational sidebar components in `/admin` contain no links back to `/account`, keeping the admin contained inside the dashboard workspace.
 
 ---
 
@@ -92,10 +100,10 @@ Production compiler output verifying webpack compilation and page optimization c
 ```bash
 ▲ Next.js 16.3.1 (webpack)
 Creating an optimized production build ...
-✓ Compiled successfully in 2.1s
+✓ Compiled successfully in 1.6s
 Running TypeScript ...
-Finished TypeScript in 1844ms ...
-Generating static pages (33/33) in 179ms
+Finished TypeScript in 851ms ...
+Generating static pages (33/33) in 177ms
 Finalizing page optimization ...
 Collecting build traces ...
 ```
