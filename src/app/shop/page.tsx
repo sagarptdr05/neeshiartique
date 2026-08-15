@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Search, SlidersHorizontal, Grid, RotateCcw } from 'lucide-react';
+import { Search, SlidersHorizontal, RotateCcw } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { Product } from '@/data/mockData';
 import AnnouncementBar from '@/components/AnnouncementBar';
@@ -24,8 +24,7 @@ function ShopContent() {
   // Local state
   const [selectedCategory, setSelectedCategory] = useState(catParam);
   const [searchQuery, setSearchQuery] = useState(searchParam);
-  const [selectedStock, setSelectedStock] = useState('all'); // all, instock, soldout
-  const [selectedCustom, setSelectedCustom] = useState('all'); // all, custom, ready
+  const [selectedPriceRange, setSelectedPriceRange] = useState('all'); // all, under250, 250to500, 500to1000, 1000plus
   const [sortBy, setSortBy] = useState('featured'); // featured, lowhigh, highlow, newest
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
@@ -39,7 +38,7 @@ function ShopContent() {
     setSearchQuery(searchParam);
   }, [searchParam]);
 
-  // Handle category tab click
+  // Handle category selector click
   const handleCategorySelect = (id: string) => {
     setSelectedCategory(id);
     const params = new URLSearchParams(searchParams.toString());
@@ -55,8 +54,7 @@ function ShopContent() {
   const resetFilters = () => {
     setSelectedCategory('all');
     setSearchQuery('');
-    setSelectedStock('all');
-    setSelectedCustom('all');
+    setSelectedPriceRange('all');
     setSortBy('featured');
     router.push('/shop');
   };
@@ -75,18 +73,17 @@ function ShopContent() {
         searchQuery &&
         !p.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
         !p.description.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !p.short_description.toLowerCase().includes(searchQuery.toLowerCase())
+        !p.short_description.toLowerCase().includes(searchQuery.toLowerCase()) &&
+        !p.category_id.toLowerCase().includes(searchQuery.toLowerCase())
       ) {
         return false;
       }
 
-      // Availability filter
-      if (selectedStock === 'instock' && p.availability_status !== 'available') return false;
-      if (selectedStock === 'soldout' && p.availability_status === 'available') return false;
-
-      // Customization filter
-      if (selectedCustom === 'custom' && !p.customization_available) return false;
-      if (selectedCustom === 'ready' && p.customization_available) return false;
+      // Price filter range checks
+      if (selectedPriceRange === 'under250' && p.price >= 250) return false;
+      if (selectedPriceRange === '250to500' && (p.price < 250 || p.price > 500)) return false;
+      if (selectedPriceRange === '500to1000' && (p.price < 500 || p.price > 1000)) return false;
+      if (selectedPriceRange === '1000plus' && p.price < 1000) return false;
 
       return true;
     })
@@ -130,7 +127,7 @@ function ShopContent() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex-grow">
         
         {/* Search and Sorting Row */}
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 mb-8">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 mb-10">
           {/* Search bar input */}
           <div className="relative flex-grow max-w-md">
             <input
@@ -138,7 +135,7 @@ function ShopContent() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search for something special..."
-              className="w-full bg-brand-offwhite border border-brand-beige rounded-full py-2.5 pl-5 pr-12 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa placeholder-brand-cocoa/45"
+              className="w-full bg-brand-offwhite border border-brand-beige rounded-full py-2.5 pl-5 pr-12 text-sm focus:outline-none focus:border-brand-rose text-brand-cocoa placeholder-brand-cocoa/45 shadow-sm"
             />
             <Search className="absolute right-4 top-3 text-brand-cocoa/50" size={18} />
           </div>
@@ -150,10 +147,10 @@ function ShopContent() {
               className="flex md:hidden items-center space-x-2 text-sm border border-brand-beige bg-brand-offwhite py-2.5 px-4 rounded text-brand-cocoa"
             >
               <SlidersHorizontal size={16} />
-              <span>Filters</span>
+              <span>Filter</span>
             </button>
 
-            {/* Sorting selection */}
+            {/* Sorting select dropdown for desktop (syncs with Sort By radio sidebar) */}
             <div className="flex items-center space-x-2">
               <span className="text-xs font-semibold text-brand-cocoa/60 uppercase tracking-wider hidden sm:inline">Sort By</span>
               <select
@@ -170,117 +167,153 @@ function ShopContent() {
           </div>
         </div>
 
-        {/* Categories Tab Bar */}
-        <div className="border-b border-brand-beige mb-10 overflow-x-auto">
-          <div className="flex space-x-6 min-w-max pb-1">
-            <button
-              onClick={() => handleCategorySelect('all')}
-              className={`text-sm font-semibold tracking-wide pb-3 relative transition-colors ${
-                selectedCategory === 'all' ? 'text-brand-rose' : 'text-brand-cocoa/75 hover:text-brand-rose'
-              }`}
-            >
-              All Products
-              {selectedCategory === 'all' && (
-                <span className="absolute bottom-0 left-0 w-full h-[2px] bg-brand-rose rounded-full" />
-              )}
-            </button>
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => handleCategorySelect(cat.id)}
-                className={`text-sm font-semibold tracking-wide pb-3 relative transition-colors ${
-                  selectedCategory === cat.id ? 'text-brand-rose' : 'text-brand-cocoa/75 hover:text-brand-rose'
-                }`}
-              >
-                {cat.name}
-                {selectedCategory === cat.id && (
-                  <span className="absolute bottom-0 left-0 w-full h-[2px] bg-brand-rose rounded-full" />
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Sidebar Filters + Grid Layout */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           
           {/* Desktop Filter Sidebar */}
           <aside className="hidden md:block space-y-8">
             
-            {/* Filter Group: Stock Availability */}
+            {/* Filter Group: Categories */}
             <div className="space-y-3">
-              <h3 className="font-serif text-sm font-bold text-brand-cocoa uppercase tracking-wider">
-                Availability
+              <h3 className="font-serif text-sm font-bold text-brand-cocoa uppercase tracking-wider border-b border-brand-beige/50 pb-2">
+                Categories
               </h3>
               <div className="flex flex-col space-y-2 text-sm text-brand-cocoa/85">
                 <label className="flex items-center space-x-2.5 cursor-pointer">
                   <input
                     type="radio"
-                    checked={selectedStock === 'all'}
-                    onChange={() => setSelectedStock('all')}
+                    name="category-desktop"
+                    checked={selectedCategory === 'all'}
+                    onChange={() => handleCategorySelect('all')}
                     className="accent-brand-rose cursor-pointer"
                   />
-                  <span>All Items</span>
+                  <span>All Crochet</span>
+                </label>
+                {categories.map((cat) => (
+                  <label key={cat.id} className="flex items-center space-x-2.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="category-desktop"
+                      checked={selectedCategory === cat.id}
+                      onChange={() => handleCategorySelect(cat.id)}
+                      className="accent-brand-rose cursor-pointer"
+                    />
+                    <span>{cat.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Filter Group: Price */}
+            <div className="space-y-3">
+              <h3 className="font-serif text-sm font-bold text-brand-cocoa uppercase tracking-wider border-b border-brand-beige/50 pb-2">
+                Price
+              </h3>
+              <div className="flex flex-col space-y-2 text-sm text-brand-cocoa/85">
+                <label className="flex items-center space-x-2.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="price-desktop"
+                    checked={selectedPriceRange === 'all'}
+                    onChange={() => setSelectedPriceRange('all')}
+                    className="accent-brand-rose cursor-pointer"
+                  />
+                  <span>Any Price</span>
                 </label>
                 <label className="flex items-center space-x-2.5 cursor-pointer">
                   <input
                     type="radio"
-                    checked={selectedStock === 'instock'}
-                    onChange={() => setSelectedStock('instock')}
+                    name="price-desktop"
+                    checked={selectedPriceRange === 'under250'}
+                    onChange={() => setSelectedPriceRange('under250')}
                     className="accent-brand-rose cursor-pointer"
                   />
-                  <span>Available Now</span>
+                  <span>Under ₹250</span>
                 </label>
                 <label className="flex items-center space-x-2.5 cursor-pointer">
                   <input
                     type="radio"
-                    checked={selectedStock === 'soldout'}
-                    onChange={() => setSelectedStock('soldout')}
+                    name="price-desktop"
+                    checked={selectedPriceRange === '250to500'}
+                    onChange={() => setSelectedPriceRange('250to500')}
                     className="accent-brand-rose cursor-pointer"
                   />
-                  <span>Temporarily Unavailable</span>
+                  <span>₹250–₹500</span>
+                </label>
+                <label className="flex items-center space-x-2.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="price-desktop"
+                    checked={selectedPriceRange === '500to1000'}
+                    onChange={() => setSelectedPriceRange('500to1000')}
+                    className="accent-brand-rose cursor-pointer"
+                  />
+                  <span>₹500–₹1,000</span>
+                </label>
+                <label className="flex items-center space-x-2.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="price-desktop"
+                    checked={selectedPriceRange === '1000plus'}
+                    onChange={() => setSelectedPriceRange('1000plus')}
+                    className="accent-brand-rose cursor-pointer"
+                  />
+                  <span>₹1,000+</span>
                 </label>
               </div>
             </div>
 
-            {/* Filter Group: Customizability */}
+            {/* Filter Group: Sort By */}
             <div className="space-y-3">
-              <h3 className="font-serif text-sm font-bold text-brand-cocoa uppercase tracking-wider">
-                Crafting Type
+              <h3 className="font-serif text-sm font-bold text-brand-cocoa uppercase tracking-wider border-b border-brand-beige/50 pb-2">
+                Sort By
               </h3>
               <div className="flex flex-col space-y-2 text-sm text-brand-cocoa/85">
                 <label className="flex items-center space-x-2.5 cursor-pointer">
                   <input
                     type="radio"
-                    checked={selectedCustom === 'all'}
-                    onChange={() => setSelectedCustom('all')}
+                    name="sort-desktop"
+                    checked={sortBy === 'featured'}
+                    onChange={() => setSortBy('featured')}
                     className="accent-brand-rose cursor-pointer"
                   />
-                  <span>All Types</span>
+                  <span>Featured</span>
                 </label>
                 <label className="flex items-center space-x-2.5 cursor-pointer">
                   <input
                     type="radio"
-                    checked={selectedCustom === 'custom'}
-                    onChange={() => setSelectedCustom('custom')}
+                    name="sort-desktop"
+                    checked={sortBy === 'newest'}
+                    onChange={() => setSortBy('newest')}
                     className="accent-brand-rose cursor-pointer"
                   />
-                  <span>Customizable / Made to Order</span>
+                  <span>Newest</span>
                 </label>
                 <label className="flex items-center space-x-2.5 cursor-pointer">
                   <input
                     type="radio"
-                    checked={selectedCustom === 'ready'}
-                    onChange={() => setSelectedCustom('ready')}
+                    name="sort-desktop"
+                    checked={sortBy === 'lowhigh'}
+                    onChange={() => setSortBy('lowhigh')}
                     className="accent-brand-rose cursor-pointer"
                   />
-                  <span>Ready to Ship Only</span>
+                  <span>Price: Low to High</span>
+                </label>
+                <label className="flex items-center space-x-2.5 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="sort-desktop"
+                    checked={sortBy === 'highlow'}
+                    onChange={() => setSortBy('highlow')}
+                    className="accent-brand-rose cursor-pointer"
+                  />
+                  <span>Price: High to Low</span>
                 </label>
               </div>
             </div>
 
             {/* Reset Button */}
-            {(selectedStock !== 'all' || selectedCustom !== 'all' || searchQuery || selectedCategory !== 'all') && (
+            {(selectedPriceRange !== 'all' || sortBy !== 'featured' || searchQuery || selectedCategory !== 'all') && (
               <button
                 onClick={resetFilters}
                 className="w-full border border-brand-beige bg-brand-offwhite text-brand-cocoa/80 hover:text-brand-rose hover:border-brand-rose transition-colors py-2.5 px-4 rounded text-xs font-semibold flex items-center justify-center space-x-2 shadow-sm"
@@ -297,34 +330,51 @@ function ShopContent() {
               <div className="fixed inset-0 bg-brand-cocoa/20 backdrop-blur-sm" onClick={() => setShowMobileFilters(false)} />
               <div className="relative flex flex-col w-4/5 max-w-xs bg-brand-cream h-full p-6 shadow-xl z-10 animate-slide-up">
                 <div className="flex items-center justify-between border-b border-brand-beige pb-4 mb-6">
-                  <span className="font-serif text-lg font-bold text-brand-cocoa">Filter Options</span>
-                  <button onClick={() => setShowMobileFilters(false)} className="text-brand-cocoa">
+                  <span className="font-serif text-lg font-bold text-brand-cocoa">Filter</span>
+                  <button onClick={() => setShowMobileFilters(false)} className="text-brand-cocoa text-xs font-semibold">
                     Close
                   </button>
                 </div>
                 
-                <div className="space-y-6 flex-grow overflow-y-auto">
+                <div className="space-y-6 flex-grow overflow-y-auto pr-1">
+                  
+                  {/* Categories */}
                   <div className="space-y-3">
-                    <h3 className="font-serif text-sm font-bold text-brand-cocoa">Availability</h3>
-                    <div className="flex flex-col space-y-2 text-sm">
-                      <label className="flex items-center space-x-2.5"><input type="radio" checked={selectedStock === 'all'} onChange={() => setSelectedStock('all')} /><span>All Items</span></label>
-                      <label className="flex items-center space-x-2.5"><input type="radio" checked={selectedStock === 'instock'} onChange={() => setSelectedStock('instock')} /><span>Available Now</span></label>
-                      <label className="flex items-center space-x-2.5"><input type="radio" checked={selectedStock === 'soldout'} onChange={() => setSelectedStock('soldout')} /><span>Temporarily Unavailable</span></label>
+                    <h3 className="font-serif text-sm font-bold text-brand-cocoa border-b border-brand-beige/50 pb-1">Categories</h3>
+                    <div className="flex flex-col space-y-2 text-sm text-brand-cocoa/85">
+                      <label className="flex items-center space-x-2.5"><input type="radio" name="category-mobile" checked={selectedCategory === 'all'} onChange={() => handleCategorySelect('all')} className="accent-brand-rose" /><span>All Crochet</span></label>
+                      {categories.map((cat) => (
+                        <label key={cat.id} className="flex items-center space-x-2.5"><input type="radio" name="category-mobile" checked={selectedCategory === cat.id} onChange={() => handleCategorySelect(cat.id)} className="accent-brand-rose" /><span>{cat.name}</span></label>
+                      ))}
                     </div>
                   </div>
 
+                  {/* Price */}
                   <div className="space-y-3">
-                    <h3 className="font-serif text-sm font-bold text-brand-cocoa">Crafting Type</h3>
-                    <div className="flex flex-col space-y-2 text-sm">
-                      <label className="flex items-center space-x-2.5"><input type="radio" checked={selectedCustom === 'all'} onChange={() => setSelectedCustom('all')} /><span>All Types</span></label>
-                      <label className="flex items-center space-x-2.5"><input type="radio" checked={selectedCustom === 'custom'} onChange={() => setSelectedCustom('custom')} /><span>Customizable</span></label>
-                      <label className="flex items-center space-x-2.5"><input type="radio" checked={selectedCustom === 'ready'} onChange={() => setSelectedCustom('ready')} /><span>Ready to Ship</span></label>
+                    <h3 className="font-serif text-sm font-bold text-brand-cocoa border-b border-brand-beige/50 pb-1">Price</h3>
+                    <div className="flex flex-col space-y-2 text-sm text-brand-cocoa/85">
+                      <label className="flex items-center space-x-2.5"><input type="radio" name="price-mobile" checked={selectedPriceRange === 'all'} onChange={() => setSelectedPriceRange('all')} className="accent-brand-rose" /><span>Any Price</span></label>
+                      <label className="flex items-center space-x-2.5"><input type="radio" name="price-mobile" checked={selectedPriceRange === 'under250'} onChange={() => setSelectedPriceRange('under250')} className="accent-brand-rose" /><span>Under ₹250</span></label>
+                      <label className="flex items-center space-x-2.5"><input type="radio" name="price-mobile" checked={selectedPriceRange === '250to500'} onChange={() => setSelectedPriceRange('250to500')} className="accent-brand-rose" /><span>₹250–₹500</span></label>
+                      <label className="flex items-center space-x-2.5"><input type="radio" name="price-mobile" checked={selectedPriceRange === '500to1000'} onChange={() => setSelectedPriceRange('500to1000')} className="accent-brand-rose" /><span>₹500–₹1,000</span></label>
+                      <label className="flex items-center space-x-2.5"><input type="radio" name="price-mobile" checked={selectedPriceRange === '1000plus'} onChange={() => setSelectedPriceRange('1000plus')} className="accent-brand-rose" /><span>₹1,000+</span></label>
+                    </div>
+                  </div>
+
+                  {/* Sort By */}
+                  <div className="space-y-3">
+                    <h3 className="font-serif text-sm font-bold text-brand-cocoa border-b border-brand-beige/50 pb-1">Sort</h3>
+                    <div className="flex flex-col space-y-2 text-sm text-brand-cocoa/85">
+                      <label className="flex items-center space-x-2.5"><input type="radio" name="sort-mobile" checked={sortBy === 'featured'} onChange={() => setSortBy('featured')} className="accent-brand-rose" /><span>Featured</span></label>
+                      <label className="flex items-center space-x-2.5"><input type="radio" name="sort-mobile" checked={sortBy === 'newest'} onChange={() => setSortBy('newest')} className="accent-brand-rose" /><span>Newest</span></label>
+                      <label className="flex items-center space-x-2.5"><input type="radio" name="sort-mobile" checked={sortBy === 'lowhigh'} onChange={() => setSortBy('lowhigh')} className="accent-brand-rose" /><span>Price: Low to High</span></label>
+                      <label className="flex items-center space-x-2.5"><input type="radio" name="sort-mobile" checked={sortBy === 'highlow'} onChange={() => setSortBy('highlow')} className="accent-brand-rose" /><span>Price: High to Low</span></label>
                     </div>
                   </div>
                 </div>
 
                 <div className="mt-auto space-y-2 pt-6 border-t border-brand-beige">
-                  <button onClick={() => setShowMobileFilters(false)} className="w-full bg-brand-rose text-brand-cream py-2.5 rounded text-sm font-bold">
+                  <button onClick={() => setShowMobileFilters(false)} className="w-full bg-brand-rose text-brand-cream py-2.5 rounded text-sm font-bold shadow-sm">
                     Apply Filters
                   </button>
                   <button onClick={resetFilters} className="w-full bg-brand-offwhite border border-brand-beige text-brand-cocoa py-2.5 rounded text-sm">

@@ -29,7 +29,7 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
   let badgeColorClass = '';
 
   if (isUnavailable) {
-    badgeText = 'UNAVAILABLE';
+    badgeText = 'CURRENTLY UNAVAILABLE';
     badgeColorClass = 'bg-brand-cocoa text-brand-cream/85';
   } else if (product.new_product) {
     badgeText = 'NEW';
@@ -179,7 +179,7 @@ export default function ProductCard({ product, onQuickView }: ProductCardProps) 
           <span className={`text-[9px] font-bold uppercase tracking-wider ${
             isUnavailable ? 'text-brand-rose' : 'text-brand-sage'
           }`}>
-            {isUnavailable ? 'Unavailable' : 'Made to Order'}
+            {isUnavailable ? 'Currently Unavailable' : 'Made to Order'}
           </span>
         </div>
       </div>
