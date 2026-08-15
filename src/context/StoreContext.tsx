@@ -99,7 +99,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<{ name: string; email: string; role: string; phone: string } | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authRedirectAction, setAuthRedirectAction] = useState<(() => void) | null>(null);
+  const [authRedirectActionState, setAuthRedirectActionState] = useState<(() => void) | null>(null);
+  const setAuthRedirectAction = (action: (() => void) | null) => {
+    setAuthRedirectActionState(action ? () => action : null);
+  };
+  const authRedirectAction = authRedirectActionState;
 
   const checkSession = async () => {
     try {

@@ -8,6 +8,8 @@ const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'
 const ALLOWED_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
+const ALLOWED_BUCKETS = ['homepage-images', 'artist-images', 'product-images'];
+
 export async function POST(request: Request) {
   const authorized = await isAdmin();
   if (!authorized) {
@@ -18,6 +20,10 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const bucket = (formData.get('bucket') as string) || 'homepage-images';
+
+    if (!ALLOWED_BUCKETS.includes(bucket)) {
+      return NextResponse.json({ success: false, message: 'Invalid storage destination' }, { status: 400 });
+    }
 
     if (!file) {
       return NextResponse.json({ success: false, message: 'No file provided' }, { status: 400 });
