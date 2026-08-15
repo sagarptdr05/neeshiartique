@@ -179,7 +179,6 @@ export default function Footer() {
         <div className="flex space-x-6 mt-3 sm:mt-0">
           <Link href="/contact" className="hover:text-brand-rose transition-colors">Privacy Policy</Link>
           <Link href="/contact" className="hover:text-brand-rose transition-colors">Terms of Service</Link>
-          <Link href="/admin" className="hover:text-brand-rose transition-colors">Admin Dashboard</Link>
         </div>
       </div>
     </footer>
