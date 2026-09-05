@@ -37,10 +37,15 @@ export async function GET() {
         .order('created_at', { ascending: false });
 
       if (error) {
-        return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+        console.warn('Supabase products fetch warning, using catalog fallback:', error);
+      } else if (data && data.length > 0) {
+        return NextResponse.json({ success: true, products: data.map(formatDbProduct) });
       }
 
-      return NextResponse.json({ success: true, products: (data || []).map(formatDbProduct) });
+      // If database is empty or not yet seeded with products, serve built-in catalog
+      const fallbackProducts = readProducts();
+      const visible = user?.role === 'admin' ? fallbackProducts : fallbackProducts.filter((p) => p.status === 'active');
+      return NextResponse.json({ success: true, products: visible });
     }
 
     // 2. Fallback Mode: Shared local JSON file

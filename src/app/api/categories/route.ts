@@ -21,9 +21,11 @@ export async function GET() {
       const supabase = await createServerClient();
       const { data, error } = await supabase.from('categories').select('*').order('name');
       if (error) {
-        return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+        console.warn('Categories fetch warning, using fallback:', error);
+      } else if (data && data.length > 0) {
+        return NextResponse.json({ success: true, categories: data });
       }
-      return NextResponse.json({ success: true, categories: data || [] });
+      return NextResponse.json({ success: true, categories: readCategories() });
     }
 
     return NextResponse.json({ success: true, categories: readCategories() });
