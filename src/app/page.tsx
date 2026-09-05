@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowRight, Sparkles, Award, Gift, Calendar, Heart, Shield } from 'lucide-react';
+import { ArrowRight, Sparkles, Award, Gift, Calendar, Heart, Shield, Play } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { Product } from '@/data/mockData';
 import AnnouncementBar from '@/components/AnnouncementBar';
@@ -18,6 +18,10 @@ export default function Home() {
   const [homepageData, setHomepageData] = useState<any>(null);
   const [artistData, setArtistData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  // Video section: hold off downloading the file until the visitor asks for it
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoStarted, setVideoStarted] = useState(false);
 
   // Load content configs on mount
   useEffect(() => {
@@ -43,12 +47,13 @@ export default function Home() {
   }, []);
 
   // Sections configuration
-  const sectionOrder = homepageData?.section_order || ['hero', 'latest', 'featured', 'artist', 'custom_cta', 'instagram'];
+  const sectionOrder = homepageData?.section_order || ['hero', 'latest', 'featured', 'artist', 'video', 'custom_cta', 'instagram'];
   const visibility = homepageData?.section_visibility || {
     hero: true,
     announcement: true,
     featured: true,
     artist: true,
+    video: true,
     latest: true,
     custom_cta: true,
     instagram: true,
@@ -304,6 +309,84 @@ export default function Home() {
                     </Link>
                   </div>
                 </div>
+              </div>
+            </div>
+          </section>
+        );
+      }
+
+      case 'video': {
+        const videoUrl = homepageData?.video_url;
+        // Nothing to show until a video has actually been set in the CMS.
+        if (!videoUrl) return null;
+
+        const heading = homepageData?.video_heading || 'How Crochet Is Made';
+        const description = homepageData?.video_description || 'A little look at the craft behind every handmade piece.';
+        const poster = homepageData?.video_poster_path || undefined;
+        const caption = homepageData?.video_caption;
+
+        const startVideo = () => {
+          setVideoStarted(true);
+          videoRef.current?.play();
+        };
+
+        return (
+          <section key="video" className="py-16 sm:py-20 bg-brand-cream border-t border-b border-brand-beige/30">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="text-center mb-8 sm:mb-10 space-y-2">
+                <span className="text-xs font-bold text-brand-rose tracking-widest uppercase">
+                  The Making Of
+                </span>
+                <h2 className="font-serif text-3xl sm:text-4xl font-bold text-brand-cocoa leading-tight">
+                  {heading}
+                </h2>
+                <p className="text-sm sm:text-base text-brand-cocoa/80 max-w-xl mx-auto leading-relaxed">
+                  {description}
+                </p>
+                <div className="w-16 h-[1.5px] bg-brand-rose mx-auto !mt-4" />
+              </div>
+
+              <div className="relative aspect-video rounded-lg overflow-hidden border border-brand-beige shadow-md bg-brand-beige/20">
+                <video
+                  ref={videoRef}
+                  src={videoUrl}
+                  poster={poster}
+                  controls={videoStarted}
+                  preload="none"
+                  playsInline
+                  onPlay={() => setVideoStarted(true)}
+                  className="w-full h-full object-cover"
+                />
+
+                {/* Custom play overlay, swapped out for native controls on play */}
+                {!videoStarted && (
+                  <button
+                    type="button"
+                    onClick={startVideo}
+                    aria-label={`Play video: ${heading}`}
+                    className="absolute inset-0 flex items-center justify-center bg-brand-cocoa/25 hover:bg-brand-cocoa/35 transition-colors group"
+                  >
+                    <span className="flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-brand-cream/95 text-brand-rose shadow-lg transition-transform duration-300 group-hover:scale-105">
+                      <Play size={28} className="ml-1" fill="currentColor" />
+                    </span>
+                  </button>
+                )}
+              </div>
+
+              {caption && (
+                <p className="text-center text-xs text-brand-cocoa/60 italic mt-4 max-w-xl mx-auto leading-relaxed">
+                  {caption}
+                </p>
+              )}
+
+              <div className="text-center mt-8">
+                <Link
+                  href="/shop"
+                  className="inline-flex items-center space-x-2 bg-brand-rose text-brand-cream hover:bg-brand-cocoa transition-colors text-sm font-semibold py-3 px-7 rounded shadow-sm"
+                >
+                  <span>Shop the Creations</span>
+                  <ArrowRight size={15} />
+                </Link>
               </div>
             </div>
           </section>

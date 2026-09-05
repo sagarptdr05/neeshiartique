@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { Order, OrderItem, INITIAL_PRODUCTS, INITIAL_COUPONS } from '@/data/mockData';
+import { Order, OrderItem, Product, Coupon } from '@/data/mockData';
 import { calculateShipping, calculateCouponDiscount, calculateTotal } from '@/lib/pricing';
 import { getSessionUser, customerIdFor } from '@/lib/session';
 import { createServerClient } from '@/lib/supabase/server';
@@ -9,6 +9,7 @@ import {
   generateOrderId,
   findByIdempotencyKey,
 } from '@/lib/orderStore';
+import { readProducts, readCoupons, formatDbProduct, formatDbCoupon } from '@/lib/catalogStore';
 import { CheckoutSchema } from '@/lib/validation';
 
 const sanitize = (value: string) => value.replace(/</g, '&lt;').replace(/>/g, '&gt;').trim();
@@ -32,7 +33,9 @@ export async function GET(request: Request) {
     if (supabaseUrl && supabaseAnonKey) {
       const supabase = await createServerClient();
 
-      let query = supabase.from('orders').select('*, order_items(*)');
+      // Nested `products(images)` rides along the order_items → products
+      // foreign key so historical orders can still show a product photo.
+      let query = supabase.from('orders').select('*, order_items(*, products(images))');
 
       if (user.role !== 'admin') {
         // Fetch current user's profile ID
@@ -93,7 +96,7 @@ export async function GET(request: Request) {
           name: item.product_name,
           quantity: item.quantity,
           price: item.unit_price,
-          image: '', // loaded from database join or product map in client
+          image: item.products?.images?.[0] || '',
         })),
       }));
 
@@ -151,9 +154,7 @@ export async function POST(request: Request) {
       notes: body?.customer_notes,
       items: body?.items?.map((item: any) => ({
         productId: item.productId,
-        name: item.name,
         quantity: Number(item.quantity),
-        price: Number(item.price),
       })),
     });
 
@@ -163,14 +164,56 @@ export async function POST(request: Request) {
     }
 
     const validData = inputValidation.data;
+    const idempotencyKey =
+      typeof body?.idempotency_key === 'string' ? body.idempotency_key.slice(0, 100) : undefined;
 
-    // Recalculate amounts. Browser values are NEVER trusted for prices.
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const supabase = supabaseUrl && supabaseAnonKey ? await createServerClient() : null;
+
+    // A repeated submission of the same checkout returns the original order
+    // rather than pricing and creating a duplicate.
+    if (idempotencyKey && supabase) {
+      const { data: duplicate } = await supabase
+        .from('orders')
+        .select('*, order_items(*, products(images))')
+        .eq('idempotency_key', idempotencyKey)
+        .maybeSingle();
+      if (duplicate) {
+        return NextResponse.json({ success: true, order: duplicate, duplicate: true });
+      }
+    } else if (idempotencyKey) {
+      const existing = findByIdempotencyKey(readOrders(), idempotencyKey);
+      if (existing) {
+        return NextResponse.json({ success: true, order: existing, duplicate: true });
+      }
+    }
+
+    // Recalculate amounts against the real catalog. Browser-supplied prices
+    // and names are NEVER trusted — only ids and quantities are used.
+    const requestedIds = validData.items.map((item) => item.productId);
+    let catalog: Product[];
+    if (supabase) {
+      const { data, error } = await supabase.from('products').select('*').in('id', requestedIds);
+      if (error) {
+        return NextResponse.json({ success: false, message: 'Could not verify product availability. Please try again.' }, { status: 500 });
+      }
+      catalog = (data || []).map(formatDbProduct);
+    } else {
+      catalog = readProducts();
+    }
+
     const orderItemsList: OrderItem[] = [];
     for (const item of validData.items) {
-      const product = INITIAL_PRODUCTS.find((p) => p.id === item.productId);
+      const product = catalog.find((p) => p.id === item.productId);
       if (!product || product.status !== 'active' || product.availability_status !== 'available') {
         return NextResponse.json(
-          { success: false, message: `${item.name} is no longer available.` },
+          {
+            success: false,
+            message: product
+              ? `${product.name} is no longer available.`
+              : 'One of the items in your basket is no longer available.',
+          },
           { status: 400 }
         );
       }
@@ -185,35 +228,22 @@ export async function POST(request: Request) {
 
     const subtotal = orderItemsList.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const shipping = calculateShipping(subtotal);
-    const coupon = INITIAL_COUPONS.find(
-      (c) => typeof body?.coupon_code === 'string' && c.code === body.coupon_code.trim().toUpperCase()
-    );
+
+    let coupon: Coupon | undefined;
+    const requestedCode = typeof body?.coupon_code === 'string' ? body.coupon_code.trim().toUpperCase() : '';
+    if (requestedCode) {
+      if (supabase) {
+        const { data } = await supabase.from('coupons').select('*').eq('code', requestedCode).maybeSingle();
+        coupon = data ? formatDbCoupon(data) : undefined;
+      } else {
+        coupon = readCoupons().find((c) => c.code === requestedCode);
+      }
+    }
     const discount = calculateCouponDiscount(coupon, subtotal);
     const total = calculateTotal(subtotal, shipping, discount);
 
-    const idempotencyKey =
-      typeof body?.idempotency_key === 'string' ? body.idempotency_key.slice(0, 100) : undefined;
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
     // 1. Dynamic Mode: Save order to Supabase PostgreSQL database
-    if (supabaseUrl && supabaseAnonKey) {
-      const supabase = await createServerClient();
-
-      // Check for duplicate idempotency key
-      if (idempotencyKey) {
-        const { data: duplicate } = await supabase
-          .from('orders')
-          .select('*, order_items(*)')
-          .eq('idempotency_key', idempotencyKey)
-          .maybeSingle();
-
-        if (duplicate) {
-          return NextResponse.json({ success: true, order: duplicate, duplicate: true });
-        }
-      }
-
+    if (supabase) {
       // Retrieve user profile ID
       const { data: profile } = await supabase
         .from('profiles')
@@ -274,15 +304,8 @@ export async function POST(request: Request) {
     }
 
     // 2. Fallback Mode: Save order to local JSON simulated database
+    // (the idempotency-key duplicate check already ran above)
     const orders = readOrders();
-
-    if (idempotencyKey) {
-      const existing = findByIdempotencyKey(orders, idempotencyKey);
-      if (existing) {
-        return NextResponse.json({ success: true, order: existing, duplicate: true });
-      }
-    }
-
     const now = new Date().toISOString();
     const order: Order = {
       id: generateOrderId(orders),

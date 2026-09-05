@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Heart, Star, ShoppingBag, ArrowRight, Check, MessageSquare, ChevronRight, Sparkles } from 'lucide-react';
+import { Heart, Star, ShoppingBag, ArrowRight, Check, MessageSquare, ChevronRight, Sparkles, Loader2 } from 'lucide-react';
 import { useStore } from '@/context/StoreContext';
 import { BRAND_CONFIG } from '@/config/brand';
 import { useCart } from '@/context/CartContext';
@@ -22,7 +22,7 @@ export default function ProductDetails({ params }: PageProps) {
   const slug = resolvedParams.slug;
   
   const router = useRouter();
-  const { products, reviews, submitReview, user, setShowAuthModal, setAuthRedirectAction } = useStore();
+  const { products, loadingProducts, reviews, submitReview, user, setShowAuthModal, setAuthRedirectAction } = useStore();
   const { addToCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
 
@@ -52,6 +52,23 @@ export default function ProductDetails({ params }: PageProps) {
       }
     }
   }, [product]);
+
+  // The catalog loads over the network now, so an empty `products` array
+  // doesn't necessarily mean this product doesn't exist — it might just not
+  // have arrived yet.
+  if (!product && loadingProducts) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <AnnouncementBar />
+        <Navbar />
+        <main className="flex-grow flex flex-col items-center justify-center py-24 space-y-3 text-brand-rose">
+          <Loader2 className="animate-spin" size={28} />
+          <span className="font-serif italic">Loading... ♡</span>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   if (!product) {
     return (

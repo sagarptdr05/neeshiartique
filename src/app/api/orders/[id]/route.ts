@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { Order, OrderItem, INITIAL_PRODUCTS } from '@/data/mockData';
-import { getSessionUser, customerIdFor, isAdmin } from '@/lib/session';
+import { Order } from '@/data/mockData';
+import { getSessionUser, customerIdFor } from '@/lib/session';
 import { createServerClient } from '@/lib/supabase/server';
 import { readOrders, writeOrders, findOrder } from '@/lib/orderStore';
 import fs from 'fs';
@@ -76,7 +76,7 @@ async function formatDbOrder(o: any, sessionUser: any): Promise<Order> {
       name: item.product_name,
       quantity: item.quantity,
       price: item.unit_price,
-      image: '',
+      image: item.products?.images?.[0] || '',
     })),
   };
 }
@@ -99,7 +99,7 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
 
       const { data: dbOrder, error } = await supabase
         .from('orders')
-        .select('*, order_items(*)')
+        .select('*, order_items(*, products(images))')
         .or(`order_number.eq.${id},id.eq.${id}`)
         .maybeSingle();
 
@@ -287,7 +287,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         .from('orders')
         .update({ ...changes, updated_at: now })
         .eq('id', dbOrder.id)
-        .select('*, order_items(*)')
+        .select('*, order_items(*, products(images))')
         .single();
 
       if (updateError || !updatedDbOrder) {

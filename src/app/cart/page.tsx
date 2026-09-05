@@ -23,17 +23,21 @@ export default function Cart() {
     shipping,
     total,
   } = useCart();
-  const { products } = useStore();
+  const { products, loadingProducts } = useStore();
 
   const [inputCoupon, setInputCoupon] = useState('');
   const [couponError, setCouponError] = useState('');
   const [couponSuccess, setCouponSuccess] = useState('');
 
-  // Check if any items are temporarily unavailable
-  const hasUnavailableItems = cartItems.some(item => {
-    const prod = products.find(p => p.id === item.productId);
-    return !prod || prod.availability_status !== 'available';
-  });
+  // Check if any items are temporarily unavailable. Skip this while the
+  // catalog is still loading, otherwise every item flashes "unavailable"
+  // for a moment before the real product list arrives.
+  const hasUnavailableItems =
+    !loadingProducts &&
+    cartItems.some(item => {
+      const prod = products.find(p => p.id === item.productId);
+      return !prod || prod.availability_status !== 'available';
+    });
 
   const handleApplyCoupon = (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,6 +137,7 @@ export default function Cart() {
                           </span>
                         )}
                         {(() => {
+                          if (loadingProducts) return null;
                           const prod = products.find(p => p.id === item.productId);
                           const isUnavailable = !prod || prod.availability_status === 'temporarily_unavailable';
                           if (isUnavailable) {

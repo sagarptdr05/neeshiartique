@@ -56,11 +56,18 @@ export default function AdminHomepageContent() {
   const [customCtaHeading, setCustomCtaHeading] = useState('');
   const [customCtaDescription, setCustomCtaDescription] = useState('');
 
+  const [videoHeading, setVideoHeading] = useState('');
+  const [videoDescription, setVideoDescription] = useState('');
+  const [videoUrl, setVideoUrl] = useState('');
+  const [videoPosterPath, setVideoPosterPath] = useState('');
+  const [videoCaption, setVideoCaption] = useState('');
+
   const [visibility, setVisibility] = useState<Record<string, boolean>>({
     hero: true,
     announcement: true,
     featured: true,
     artist: true,
+    video: true,
     latest: true,
     custom_cta: true,
     instagram: true
@@ -137,16 +144,22 @@ export default function AdminHomepageContent() {
           setLatestSectionDescription(hp.latest_section_description || '');
           setCustomCtaHeading(hp.custom_cta_heading || '');
           setCustomCtaDescription(hp.custom_cta_description || '');
+          setVideoHeading(hp.video_heading || 'How Crochet Is Made');
+          setVideoDescription(hp.video_description || '');
+          setVideoUrl(hp.video_url || '');
+          setVideoPosterPath(hp.video_poster_path || '');
+          setVideoCaption(hp.video_caption || '');
           setVisibility(hp.section_visibility || {
             hero: true,
             announcement: true,
             featured: true,
             artist: true,
+            video: true,
             latest: true,
             custom_cta: true,
             instagram: true
           });
-          setSectionOrder(hp.section_order || ['hero', 'announcement', 'latest', 'featured', 'artist', 'custom_cta', 'instagram']);
+          setSectionOrder(hp.section_order || ['hero', 'announcement', 'latest', 'featured', 'artist', 'video', 'custom_cta', 'instagram']);
           setFeaturedProducts(hp.featured_products || []);
           setLatestProducts(hp.latest_products || []);
         }
@@ -213,6 +226,47 @@ export default function AdminHomepageContent() {
     } finally {
       setUploading(false);
     }
+  };
+
+  // Generic uploader for the video section's file + poster image
+  const uploadTo = async (
+    file: File,
+    bucket: string,
+    onDone: (url: string) => void,
+    label: string
+  ) => {
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('bucket', bucket);
+
+    try {
+      const res = await fetch('/api/admin/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        onDone(data.url);
+        setIsDirty(true);
+      } else {
+        alert(data.message || `Failed to upload ${label}.`);
+      }
+    } catch (err) {
+      console.error('Upload error:', err);
+      alert(`Upload failed. If the ${label} is large, host it elsewhere and paste the URL instead.`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadTo(file, 'homepage-videos', setVideoUrl, 'video');
+  };
+
+  const handleVideoPosterUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadTo(file, 'homepage-images', setVideoPosterPath, 'thumbnail');
   };
 
   // Section Ordering actions
@@ -310,6 +364,11 @@ export default function AdminHomepageContent() {
           latest_section_description: latestSectionDescription,
           custom_cta_heading: customCtaHeading,
           custom_cta_description: customCtaDescription,
+          video_heading: videoHeading,
+          video_description: videoDescription,
+          video_url: videoUrl,
+          video_poster_path: videoPosterPath,
+          video_caption: videoCaption,
           section_visibility: visibility,
           section_order: sectionOrder,
           featured_products: featuredProducts,
@@ -766,10 +825,135 @@ export default function AdminHomepageContent() {
                   </div>
                 </div>
 
-                {/* 6. Section Visibility Controls */}
+                {/* 6. Homepage Video Section */}
+                <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-6 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between border-b border-brand-beige/50 pb-2">
+                    <h3 className="text-xs font-bold text-brand-cocoa uppercase tracking-wider">
+                      6. Homepage Video
+                    </h3>
+                    <span className="text-[10px] font-semibold text-brand-cocoa/50 normal-case">
+                      Hidden until a video is set
+                    </span>
+                  </div>
+
+                  <div className="space-y-3.5">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-brand-cocoa/70 uppercase tracking-wider block">Video Section Heading</label>
+                      <input
+                        type="text"
+                        value={videoHeading}
+                        onChange={(e) => { setVideoHeading(e.target.value); setIsDirty(true); }}
+                        placeholder="How Crochet Is Made"
+                        className="w-full bg-brand-cream border border-brand-beige rounded px-3.5 py-2 text-xs focus:outline-none focus:border-brand-rose text-brand-cocoa placeholder-brand-cocoa/40"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-brand-cocoa/70 uppercase tracking-wider block">Supporting Description</label>
+                      <textarea
+                        rows={2}
+                        value={videoDescription}
+                        onChange={(e) => { setVideoDescription(e.target.value); setIsDirty(true); }}
+                        placeholder="A little look at the craft behind every handmade piece."
+                        className="w-full bg-brand-cream border border-brand-beige rounded p-3 text-xs focus:outline-none focus:border-brand-rose text-brand-cocoa leading-relaxed placeholder-brand-cocoa/40"
+                      />
+                    </div>
+
+                    {/* Video source: paste a URL, or upload a small file */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-brand-cocoa/70 uppercase tracking-wider block">Video URL</label>
+                      <input
+                        type="text"
+                        value={videoUrl}
+                        onChange={(e) => { setVideoUrl(e.target.value); setIsDirty(true); }}
+                        placeholder="/videos/uploads/making.mp4 or https://..."
+                        className="w-full bg-brand-cream border border-brand-beige rounded px-3.5 py-2 text-xs focus:outline-none focus:border-brand-rose text-brand-cocoa placeholder-brand-cocoa/40"
+                      />
+                      <p className="text-[10px] text-brand-cocoa/55 leading-relaxed">
+                        Paste a direct link to an MP4/WEBM file, or upload one below. Large files are
+                        better hosted elsewhere and pasted here as a link.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <input
+                        type="file"
+                        accept="video/mp4,video/webm,video/quicktime"
+                        id="homepage-video-input"
+                        onChange={handleVideoUpload}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        disabled={uploading}
+                        onClick={() => document.getElementById('homepage-video-input')?.click()}
+                        className="inline-flex items-center gap-1.5 border border-brand-beige bg-brand-cream hover:bg-brand-beige/40 disabled:opacity-60 text-brand-cocoa transition-colors text-[10px] font-bold uppercase tracking-wider py-2 px-4 rounded"
+                      >
+                        {uploading ? <Loader2 className="animate-spin" size={12} /> : <Upload size={12} />}
+                        <span>Upload Video (max 25MB)</span>
+                      </button>
+                      {videoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => { setVideoUrl(''); setIsDirty(true); }}
+                          className="inline-flex items-center gap-1.5 border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 transition-colors text-[10px] font-bold uppercase tracking-wider py-2 px-4 rounded"
+                        >
+                          <Trash2 size={12} />
+                          <span>Remove Video</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Poster / thumbnail */}
+                    <div className="space-y-2 pt-1">
+                      <label className="text-[10px] font-bold text-brand-cocoa/70 uppercase tracking-wider block">Thumbnail Image (shown before play)</label>
+                      <div className="flex items-center gap-4">
+                        <div className="relative w-24 h-14 rounded border border-brand-beige bg-brand-cream overflow-hidden flex-shrink-0">
+                          {videoPosterPath ? (
+                            <Image src={videoPosterPath} alt="Video thumbnail preview" fill className="object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-brand-cocoa/30 text-[10px]">No image</div>
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            id="homepage-video-poster-input"
+                            onChange={handleVideoPosterUpload}
+                            className="hidden"
+                          />
+                          <button
+                            type="button"
+                            disabled={uploading}
+                            onClick={() => document.getElementById('homepage-video-poster-input')?.click()}
+                            className="inline-flex items-center gap-1.5 border border-brand-beige bg-brand-cream hover:bg-brand-beige/40 disabled:opacity-60 text-brand-cocoa transition-colors text-[10px] font-bold uppercase tracking-wider py-2 px-4 rounded"
+                          >
+                            {uploading ? <Loader2 className="animate-spin" size={12} /> : <Upload size={12} />}
+                            <span>Upload Thumbnail</span>
+                          </button>
+                          <p className="text-[10px] text-brand-cocoa/55">Optional, but avoids a blank frame before play.</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-brand-cocoa/70 uppercase tracking-wider block">Caption Below Video (Optional)</label>
+                      <input
+                        type="text"
+                        value={videoCaption}
+                        onChange={(e) => { setVideoCaption(e.target.value); setIsDirty(true); }}
+                        placeholder="e.g. An illustrative look at the crochet process."
+                        className="w-full bg-brand-cream border border-brand-beige rounded px-3.5 py-2 text-xs focus:outline-none focus:border-brand-rose text-brand-cocoa placeholder-brand-cocoa/40"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 7. Section Visibility Controls */}
                 <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-6 shadow-sm space-y-4">
                   <h3 className="text-xs font-bold text-brand-cocoa uppercase tracking-wider border-b border-brand-beige/50 pb-2">
-                    6. Section Visibility
+                    7. Section Visibility
                   </h3>
 
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
@@ -791,10 +975,10 @@ export default function AdminHomepageContent() {
                   </div>
                 </div>
 
-                {/* 7. Section Display Order */}
+                {/* 8. Section Display Order */}
                 <div className="bg-brand-offwhite border border-brand-beige rounded-lg p-6 shadow-sm space-y-4">
                   <h3 className="text-xs font-bold text-brand-cocoa uppercase tracking-wider border-b border-brand-beige/50 pb-2">
-                    7. Section Display Order
+                    8. Section Display Order
                   </h3>
 
                   <div className="space-y-2">

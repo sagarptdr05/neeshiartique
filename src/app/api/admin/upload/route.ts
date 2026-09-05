@@ -4,11 +4,18 @@ import { createServerClient } from '@/lib/supabase/server';
 import fs from 'fs';
 import path from 'path';
 
-const ALLOWED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
-const ALLOWED_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const IMAGE_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
 
-const ALLOWED_BUCKETS = ['homepage-images', 'artist-images', 'product-images'];
+const VIDEO_MIME_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
+const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov'];
+// Kept modest on purpose: this upload goes through the API route, and most
+// serverless hosts cap request bodies well below this. Anything larger should
+// be hosted elsewhere and pasted in as a URL instead.
+const MAX_VIDEO_SIZE = 25 * 1024 * 1024; // 25MB
+
+const ALLOWED_BUCKETS = ['homepage-images', 'artist-images', 'product-images', 'homepage-videos'];
 
 export async function POST(request: Request) {
   const authorized = await isAdmin();
@@ -29,19 +36,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'No file provided' }, { status: 400 });
     }
 
-    // 1. Validate file size
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json({ success: false, message: 'File is too large (max 5MB)' }, { status: 400 });
+    // 1. Decide whether this is an image or a video upload from its MIME type
+    const isImage = IMAGE_MIME_TYPES.includes(file.type);
+    const isVideo = VIDEO_MIME_TYPES.includes(file.type);
+
+    if (!isImage && !isVideo) {
+      return NextResponse.json(
+        { success: false, message: 'Unsupported format. Images: PNG, JPG, WEBP, GIF. Videos: MP4, WEBM, MOV.' },
+        { status: 400 }
+      );
     }
 
-    // 2. Validate MIME type
-    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-      return NextResponse.json({ success: false, message: 'Invalid image format. Allowed: PNG, JPG, WEBP, GIF' }, { status: 400 });
+    // 2. Validate file size against the limit for that kind
+    const maxSize = isVideo ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+    if (file.size > maxSize) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: isVideo
+            ? 'Video is too large (max 25MB). Host it elsewhere and paste the URL instead.'
+            : 'File is too large (max 5MB)',
+        },
+        { status: 400 }
+      );
     }
 
-    // 3. Validate file extension
+    // 3. Validate file extension matches the detected kind
     const ext = path.extname(file.name).toLowerCase();
-    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+    const allowedExtensions = isVideo ? VIDEO_EXTENSIONS : IMAGE_EXTENSIONS;
+    if (!allowedExtensions.includes(ext)) {
       return NextResponse.json({ success: false, message: 'Invalid file extension' }, { status: 400 });
     }
 
@@ -81,8 +104,9 @@ export async function POST(request: Request) {
       });
     }
 
-    // 5. Fallback Mode: Save locally to public/images/uploads/
-    const uploadsDir = path.join(process.cwd(), 'public/images/uploads');
+    // 5. Fallback Mode: Save locally under public/
+    const publicSubDir = isVideo ? 'videos/uploads' : 'images/uploads';
+    const uploadsDir = path.join(process.cwd(), 'public', publicSubDir);
     if (!fs.existsSync(uploadsDir)) {
       fs.mkdirSync(uploadsDir, { recursive: true });
     }
@@ -92,7 +116,7 @@ export async function POST(request: Request) {
     const filePath = path.join(uploadsDir, safeFilename);
     fs.writeFileSync(filePath, buffer);
 
-    const localUrl = `/images/uploads/${safeFilename}`;
+    const localUrl = `/${publicSubDir}/${safeFilename}`;
 
     return NextResponse.json({
       success: true,

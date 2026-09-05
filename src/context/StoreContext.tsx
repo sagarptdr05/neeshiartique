@@ -8,11 +8,8 @@ import {
   CustomOrderRequest,
   Review,
   Coupon,
-  INITIAL_PRODUCTS,
-  INITIAL_CATEGORIES,
   INITIAL_CUSTOM_ORDERS,
   INITIAL_REVIEWS,
-  INITIAL_COUPONS,
 } from '../data/mockData';
 import { AdminOrderAction } from '@/lib/orderStatus';
 
@@ -28,6 +25,29 @@ export interface PlaceOrderInput {
 export interface OrderMutationResult {
   success: boolean;
   order?: Order;
+  message?: string;
+}
+
+export interface ProductMutationResult {
+  success: boolean;
+  product?: Product;
+  message?: string;
+}
+
+export interface CategoryMutationResult {
+  success: boolean;
+  category?: Category;
+  message?: string;
+}
+
+export interface CouponMutationResult {
+  success: boolean;
+  coupon?: Coupon;
+  message?: string;
+}
+
+export interface MutationResult {
+  success: boolean;
   message?: string;
 }
 
@@ -48,17 +68,22 @@ interface StoreContextType {
   setAuthRedirectAction: (action: (() => void) | null) => void;
   checkSession: () => Promise<void>;
   logout: () => Promise<void>;
-  
-  // Product handlers
-  addProduct: (product: Omit<Product, 'id' | 'created_at'>) => void;
-  updateProduct: (product: Product) => void;
-  deleteProduct: (id: string) => void;
-  
-  // Category handlers
-  addCategory: (category: Category) => void;
-  updateCategory: (category: Category) => void;
-  deleteCategory: (id: string) => void;
-  
+
+  // Product handlers (server-backed via /api/products — every visitor sees
+  // the same catalog, not just whichever browser last edited it)
+  loadingProducts: boolean;
+  refreshProducts: () => Promise<void>;
+  addProduct: (product: Omit<Product, 'id' | 'slug' | 'sku' | 'stock' | 'created_at'>) => Promise<ProductMutationResult>;
+  updateProduct: (product: Product) => Promise<ProductMutationResult>;
+  deleteProduct: (id: string) => Promise<MutationResult>;
+
+  // Category handlers (server-backed via /api/categories)
+  loadingCategories: boolean;
+  refreshCategories: () => Promise<void>;
+  addCategory: (category: Omit<Category, 'id'>) => Promise<CategoryMutationResult>;
+  updateCategory: (category: Category) => Promise<CategoryMutationResult>;
+  deleteCategory: (id: string) => Promise<MutationResult>;
+
   // Order handlers (server-backed via /api/orders)
   loadingOrders: boolean;
   refreshOrders: () => Promise<void>;
@@ -78,22 +103,27 @@ interface StoreContextType {
   approveReview: (id: string) => void;
   deleteReview: (id: string) => void;
 
-  // Coupon handlers
-  addCoupon: (coupon: Coupon) => void;
-  toggleCoupon: (code: string) => void;
-  deleteCoupon: (code: string) => void;
+  // Coupon handlers (server-backed via /api/coupons)
+  loadingCoupons: boolean;
+  refreshCoupons: () => Promise<void>;
+  addCoupon: (coupon: Omit<Coupon, 'active'> & { active?: boolean }) => Promise<CouponMutationResult>;
+  toggleCoupon: (code: string) => Promise<CouponMutationResult>;
+  deleteCoupon: (code: string) => Promise<MutationResult>;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [products, setProducts] = useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [customOrders, setCustomOrders] = useState<CustomOrderRequest[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [loadingCoupons, setLoadingCoupons] = useState(true);
 
   // Auth states
   const [user, setUser] = useState<{ name: string; email: string; role: string; phone: string } | null>(null);
@@ -142,7 +172,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     checkSession();
   }, []);
 
-  // Load from localStorage on mount
+  // Load from localStorage on mount (custom orders are refreshed again below
+  // once auth resolves; reviews have no server store yet)
   useEffect(() => {
     const getLocal = <T,>(key: string, initial: T): T => {
       if (typeof window === 'undefined') return initial;
@@ -150,82 +181,176 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return data ? JSON.parse(data) : initial;
     };
 
-    const savedProducts = getLocal<Product[]>('neeshi_products', []);
-    if (savedProducts.length === 0) {
-      setProducts(INITIAL_PRODUCTS);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('neeshi_products', JSON.stringify(INITIAL_PRODUCTS));
-      }
-    } else {
-      // Merge initial products that aren't in local storage (checking by ID)
-      const merged = [...savedProducts];
-      let updated = false;
-      INITIAL_PRODUCTS.forEach((initial) => {
-        if (!merged.some((p) => p.id === initial.id)) {
-          merged.push(initial);
-          updated = true;
-        }
-      });
-      setProducts(merged);
-      if (updated && typeof window !== 'undefined') {
-        localStorage.setItem('neeshi_products', JSON.stringify(merged));
-      }
-    }
-
-    setCategories(getLocal('neeshi_categories', INITIAL_CATEGORIES));
     setCustomOrders(getLocal('neeshi_custom_orders', INITIAL_CUSTOM_ORDERS));
     setReviews(getLocal('neeshi_reviews', INITIAL_REVIEWS));
-    setCoupons(getLocal('neeshi_coupons', INITIAL_COUPONS));
   }, []);
 
-  // Sync state to localStorage helper
+  // Sync state to localStorage helper (still used for reviews, which have no
+  // server-side store)
   const syncLocal = (key: string, value: any) => {
     if (typeof window !== 'undefined') {
       localStorage.setItem(key, JSON.stringify(value));
     }
   };
 
+  // Catalog Actions — products, categories and coupons all live on the
+  // server (Supabase when configured, a shared JSON file otherwise) so every
+  // visitor sees the same catalog, and checkout prices can be trusted.
+  const refreshProducts = async () => {
+    try {
+      setLoadingProducts(true);
+      const res = await fetch('/api/products');
+      const data = await res.json();
+      setProducts(res.ok && data.success ? data.products : []);
+    } catch (err) {
+      console.error('Failed to load products:', err);
+      setProducts([]);
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  const refreshCategories = async () => {
+    try {
+      setLoadingCategories(true);
+      const res = await fetch('/api/categories');
+      const data = await res.json();
+      setCategories(res.ok && data.success ? data.categories : []);
+    } catch (err) {
+      console.error('Failed to load categories:', err);
+      setCategories([]);
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
+  const refreshCoupons = async () => {
+    try {
+      setLoadingCoupons(true);
+      const res = await fetch('/api/coupons');
+      const data = await res.json();
+      setCoupons(res.ok && data.success ? data.coupons : []);
+    } catch (err) {
+      console.error('Failed to load coupons:', err);
+      setCoupons([]);
+    } finally {
+      setLoadingCoupons(false);
+    }
+  };
+
+  // The catalog is public — fetch it once on mount rather than waiting on auth.
+  useEffect(() => {
+    refreshProducts();
+    refreshCategories();
+    refreshCoupons();
+  }, []);
+
   // Product Actions
-  const addProduct = (newProd: Omit<Product, 'id' | 'created_at'>) => {
-    const p: Product = {
-      ...newProd,
-      id: `prod-${Date.now()}`,
-      created_at: new Date().toISOString(),
-    };
-    const updated = [p, ...products];
-    setProducts(updated);
-    syncLocal('neeshi_products', updated);
+  const addProduct = async (newProd: Omit<Product, 'id' | 'slug' | 'sku' | 'stock' | 'created_at'>): Promise<ProductMutationResult> => {
+    try {
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newProd),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, message: data.message || 'Could not add this product.' };
+      }
+      setProducts((prev) => [data.product, ...prev]);
+      return { success: true, product: data.product };
+    } catch (err) {
+      console.error('Failed to add product:', err);
+      return { success: false, message: 'We could not reach the server. Please try again.' };
+    }
   };
 
-  const updateProduct = (updatedProd: Product) => {
-    const updated = products.map((p) => (p.id === updatedProd.id ? updatedProd : p));
-    setProducts(updated);
-    syncLocal('neeshi_products', updated);
+  const updateProduct = async (updatedProd: Product): Promise<ProductMutationResult> => {
+    try {
+      const res = await fetch(`/api/products/${encodeURIComponent(updatedProd.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedProd),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, message: data.message || 'Could not save changes.' };
+      }
+      setProducts((prev) => prev.map((p) => (p.id === data.product.id ? data.product : p)));
+      return { success: true, product: data.product };
+    } catch (err) {
+      console.error('Failed to update product:', err);
+      return { success: false, message: 'We could not reach the server. Please try again.' };
+    }
   };
 
-  const deleteProduct = (id: string) => {
-    const updated = products.filter((p) => p.id !== id);
-    setProducts(updated);
-    syncLocal('neeshi_products', updated);
+  const deleteProduct = async (id: string): Promise<MutationResult> => {
+    try {
+      const res = await fetch(`/api/products/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, message: data.message || 'Could not delete this product.' };
+      }
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+      return { success: true };
+    } catch (err) {
+      console.error('Failed to delete product:', err);
+      return { success: false, message: 'We could not reach the server. Please try again.' };
+    }
   };
 
   // Category Actions
-  const addCategory = (cat: Category) => {
-    const updated = [...categories, cat];
-    setCategories(updated);
-    syncLocal('neeshi_categories', updated);
+  const addCategory = async (cat: Omit<Category, 'id'>): Promise<CategoryMutationResult> => {
+    try {
+      const res = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cat),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, message: data.message || 'Could not add this category.' };
+      }
+      setCategories((prev) => [...prev, data.category]);
+      return { success: true, category: data.category };
+    } catch (err) {
+      console.error('Failed to add category:', err);
+      return { success: false, message: 'We could not reach the server. Please try again.' };
+    }
   };
 
-  const updateCategory = (updatedCat: Category) => {
-    const updated = categories.map((c) => (c.id === updatedCat.id ? updatedCat : c));
-    setCategories(updated);
-    syncLocal('neeshi_categories', updated);
+  const updateCategory = async (updatedCat: Category): Promise<CategoryMutationResult> => {
+    try {
+      const res = await fetch(`/api/categories/${encodeURIComponent(updatedCat.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedCat),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, message: data.message || 'Could not save changes.' };
+      }
+      setCategories((prev) => prev.map((c) => (c.id === data.category.id ? data.category : c)));
+      return { success: true, category: data.category };
+    } catch (err) {
+      console.error('Failed to update category:', err);
+      return { success: false, message: 'We could not reach the server. Please try again.' };
+    }
   };
 
-  const deleteCategory = (id: string) => {
-    const updated = categories.filter((c) => c.id !== id);
-    setCategories(updated);
-    syncLocal('neeshi_categories', updated);
+  const deleteCategory = async (id: string): Promise<MutationResult> => {
+    try {
+      const res = await fetch(`/api/categories/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, message: data.message || 'Could not delete this category.' };
+      }
+      setCategories((prev) => prev.filter((c) => c.id !== id));
+      return { success: true };
+    } catch (err) {
+      console.error('Failed to delete category:', err);
+      return { success: false, message: 'We could not reach the server. Please try again.' };
+    }
   };
 
   // Order Actions — orders live on the server so prices and status transitions
@@ -382,22 +507,57 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Coupon Actions
-  const addCoupon = (coupon: Coupon) => {
-    const updated = [...coupons, coupon];
-    setCoupons(updated);
-    syncLocal('neeshi_coupons', updated);
+  const addCoupon = async (coupon: Omit<Coupon, 'active'> & { active?: boolean }): Promise<CouponMutationResult> => {
+    try {
+      const res = await fetch('/api/coupons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(coupon),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, message: data.message || 'Could not create this coupon.' };
+      }
+      setCoupons((prev) => [...prev, data.coupon]);
+      return { success: true, coupon: data.coupon };
+    } catch (err) {
+      console.error('Failed to add coupon:', err);
+      return { success: false, message: 'We could not reach the server. Please try again.' };
+    }
   };
 
-  const toggleCoupon = (code: string) => {
-    const updated = coupons.map((c) => (c.code === code ? { ...c, active: !c.active } : c));
-    setCoupons(updated);
-    syncLocal('neeshi_coupons', updated);
+  const toggleCoupon = async (code: string): Promise<CouponMutationResult> => {
+    try {
+      const res = await fetch(`/api/coupons/${encodeURIComponent(code)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'toggle' }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, message: data.message || 'Could not update this coupon.' };
+      }
+      setCoupons((prev) => prev.map((c) => (c.code === data.coupon.code ? data.coupon : c)));
+      return { success: true, coupon: data.coupon };
+    } catch (err) {
+      console.error('Failed to toggle coupon:', err);
+      return { success: false, message: 'We could not reach the server. Please try again.' };
+    }
   };
 
-  const deleteCoupon = (code: string) => {
-    const updated = coupons.filter((c) => c.code !== code);
-    setCoupons(updated);
-    syncLocal('neeshi_coupons', updated);
+  const deleteCoupon = async (code: string): Promise<MutationResult> => {
+    try {
+      const res = await fetch(`/api/coupons/${encodeURIComponent(code)}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, message: data.message || 'Could not delete this coupon.' };
+      }
+      setCoupons((prev) => prev.filter((c) => c.code !== code));
+      return { success: true };
+    } catch (err) {
+      console.error('Failed to delete coupon:', err);
+      return { success: false, message: 'We could not reach the server. Please try again.' };
+    }
   };
 
   return (
@@ -417,9 +577,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setAuthRedirectAction,
         checkSession,
         logout,
+        loadingProducts,
+        refreshProducts,
         addProduct,
         updateProduct,
         deleteProduct,
+        loadingCategories,
+        refreshCategories,
         addCategory,
         updateCategory,
         deleteCategory,
@@ -432,6 +596,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         submitReview,
         approveReview,
         deleteReview,
+        loadingCoupons,
+        refreshCoupons,
         addCoupon,
         toggleCoupon,
         deleteCoupon,

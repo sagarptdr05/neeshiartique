@@ -13,17 +13,42 @@
   "latest_section_description": "Shop by categories.",
   "custom_cta_heading": "Have Something Special in Mind?",
   "custom_cta_description": "Tell us what you're imagining, and we'll create something especially for you.",
+  "video_heading": "How Crochet Is Made",
+  "video_description": "A little look at the craft behind every handmade piece.",
+  "video_url": "/videos/uploads/_test-sample.mp4",
+  "video_poster_path": "",
+  "video_caption": "An illustrative look at the crochet process.",
   "section_visibility": {
     "hero": true,
     "announcement": true,
     "featured": true,
     "artist": true,
+    "video": true,
     "latest": true,
     "custom_cta": true,
     "instagram": true
   },
-  "section_order": ["hero", "announcement", "latest", "featured", "artist", "custom_cta", "instagram"],
-  "featured_products": ["prod-1", "prod-2", "prod-3", "prod-4"],
-  "latest_products": ["prod-5", "prod-6", "prod-7", "prod-8"],
-  "updated_at": "2026-08-15T18:00:00.000Z"
+  "section_order": [
+    "hero",
+    "announcement",
+    "latest",
+    "featured",
+    "artist",
+    "video",
+    "custom_cta",
+    "instagram"
+  ],
+  "featured_products": [
+    "prod-1",
+    "prod-2",
+    "prod-3",
+    "prod-4"
+  ],
+  "latest_products": [
+    "prod-5",
+    "prod-6",
+    "prod-7",
+    "prod-8"
+  ],
+  "updated_at": "2026-08-22T14:44:35.494Z"
 }

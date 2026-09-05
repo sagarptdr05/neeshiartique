@@ -48,7 +48,61 @@ export const CustomOrderSchema = z.object({
   message: z.string().optional(),
 });
 
-// 5. Checkout Schema
+// 5. Product Schema (Admin catalog management)
+export const ProductSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters').max(120, 'Name is too long').trim(),
+  description: z.string().min(10, 'Description must be at least 10 characters').trim(),
+  short_description: z.string().min(5, 'Short description must be at least 5 characters').max(300, 'Short description is too long').trim(),
+  price: z.number().int().positive('Price must be greater than 0'),
+  compare_at_price: z.number().int().positive('Compare-at price must be greater than 0').optional().nullable(),
+  category_id: z.string().min(1, 'Category is required'),
+  availability_status: z.enum(['available', 'temporarily_unavailable', 'discontinued']),
+  made_to_order: z.boolean(),
+  images: z.array(z.string().min(1)).min(1, 'At least one image is required'),
+  materials: z.array(z.string()).default([]),
+  care_instructions: z.array(z.string()).default([]),
+  customization_available: z.boolean(),
+  personalization_options: z.array(z.string()).optional(),
+  preparation_time: z.string().max(60, 'Preparation time is too long').optional(),
+  shipping_time: z.string().max(60, 'Shipping time is too long').optional(),
+  featured: z.boolean(),
+  bestseller: z.boolean(),
+  new_product: z.boolean(),
+  status: z.enum(['active', 'archived']),
+});
+
+export const ProductUpdateSchema = ProductSchema.partial();
+
+// 6. Category Schema
+export const CategorySchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters').max(80, 'Name is too long').trim(),
+  description: z.string().max(300, 'Description is too long').trim().optional().default(''),
+  image: z.string().min(1, 'An image is required').trim(),
+});
+
+export const CategoryUpdateSchema = CategorySchema.partial();
+
+// 7. Coupon Schema
+export const CouponSchema = z.object({
+  code: z.string().regex(/^[A-Za-z0-9]{3,20}$/, 'Code must be 3-20 letters/numbers').trim(),
+  type: z.enum(['percentage', 'fixed']),
+  value: z.number().int().positive('Value must be greater than 0'),
+  minSubtotal: z.number().int().positive('Minimum subtotal must be greater than 0').optional().nullable(),
+  active: z.boolean().optional().default(true),
+}).refine((data) => data.type !== 'percentage' || data.value <= 100, {
+  message: 'A percentage discount cannot exceed 100',
+  path: ['value'],
+});
+
+// 7b. Coupon Update Schema (toggling active / editing an existing coupon)
+export const CouponUpdateSchema = z.object({
+  active: z.boolean().optional(),
+  type: z.enum(['percentage', 'fixed']).optional(),
+  value: z.number().int().positive('Value must be greater than 0').optional(),
+  minSubtotal: z.number().int().positive('Minimum subtotal must be greater than 0').optional().nullable(),
+});
+
+// 8. Checkout Schema
 export const CheckoutSchema = z.object({
   customerName: z.string().min(2, 'Name must be at least 2 characters').trim(),
   email: z.string().email('Invalid email address').trim().toLowerCase(),
@@ -58,10 +112,10 @@ export const CheckoutSchema = z.object({
   state: z.string().min(2, 'State is required').trim(),
   pincode: z.string().regex(/^\d{6}$/, 'Pincode must be exactly 6 digits').trim(),
   notes: z.string().optional(),
+  // Only the id and quantity ever come from the browser — name and price are
+  // always looked up server-side from the catalog, never trusted here.
   items: z.array(z.object({
     productId: z.string().min(1, 'Product ID is required'),
-    name: z.string().min(1, 'Product Name is required'),
     quantity: z.number().int().positive('Quantity must be greater than 0'),
-    price: z.number().int().positive('Price must be positive'),
   })).min(1, 'Cart cannot be empty'),
 });

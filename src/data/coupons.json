@@ -1,0 +1,21 @@
+[
+  {
+    "code": "LOVECROCHET",
+    "type": "percentage",
+    "value": 10,
+    "active": true
+  },
+  {
+    "code": "NEESHIGIFT",
+    "type": "fixed",
+    "value": 50,
+    "minSubtotal": 300,
+    "active": true
+  },
+  {
+    "code": "WELCOME15",
+    "type": "percentage",
+    "value": 15,
+    "active": true
+  }
+]

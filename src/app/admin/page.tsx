@@ -68,6 +68,7 @@ export default function AdminDashboard() {
 
   const {
     products,
+    loadingProducts,
     categories,
     orders,
     customOrders,
@@ -147,14 +148,19 @@ export default function AdminDashboard() {
   const [newProdMadeToOrder, setNewProdMadeToOrder] = useState(true);
   const [newProdPrepTime, setNewProdPrepTime] = useState('3–5 days');
 
+  const [addProductError, setAddProductError] = useState('');
+  const [savingProduct, setSavingProduct] = useState(false);
+
   // Form states: Editing Product
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editProductError, setEditProductError] = useState('');
 
   // Form states: New Coupon
   const [newCouponCode, setNewCouponCode] = useState('');
   const [newCouponType, setNewCouponType] = useState<'percentage' | 'fixed'>('percentage');
   const [newCouponValue, setNewCouponValue] = useState(10);
   const [newCouponMin, setNewCouponMin] = useState('');
+  const [couponFormError, setCouponFormError] = useState('');
 
   // Handle Log out trigger
   const handleAdminLogout = async () => {
@@ -218,25 +224,23 @@ export default function AdminDashboard() {
     }
   };
 
-  // Product Add submit handler
-  const handleAddProductSubmit = (e: React.FormEvent) => {
+  // Product Add submit handler — slug/sku are always generated server-side
+  const handleAddProductSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProdName.trim() || newProdPrice <= 0 || !newProdDesc.trim()) return;
 
-    const slug = newProdName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    setSavingProduct(true);
+    setAddProductError('');
 
-    addProduct({
+    const result = await addProduct({
       name: newProdName.trim(),
-      slug,
       description: newProdDesc.trim(),
       short_description: newProdDesc.trim(),
       price: Number(newProdPrice),
       compare_at_price: newProdCompare ? Number(newProdCompare) : undefined,
       category_id: newProdCategory,
-      stock: 99, // Kept internally for backwards compatibility, ignored in UI
       availability_status: newProdAvailability,
       made_to_order: newProdMadeToOrder,
-      sku: `PROD-${Date.now().toString().slice(-6)}`,
       images: [newProdImage],
       materials: ['100% Organic Cotton Yarn'],
       care_instructions: ['Gently spot clean with damp cloth.'],
@@ -250,6 +254,13 @@ export default function AdminDashboard() {
       status: 'active',
     });
 
+    setSavingProduct(false);
+
+    if (!result.success) {
+      setAddProductError(result.message || 'Could not add this product.');
+      return;
+    }
+
     // Reset
     setNewProdName('');
     setNewProdPrice(0);
@@ -262,18 +273,40 @@ export default function AdminDashboard() {
     setShowAddProduct(false);
   };
 
-  const handleSaveEditProduct = (e: React.FormEvent) => {
+  const handleSaveEditProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
-    updateProduct(editingProduct);
+
+    setSavingProduct(true);
+    setEditProductError('');
+
+    const result = await updateProduct(editingProduct);
+
+    setSavingProduct(false);
+
+    if (!result.success) {
+      setEditProductError(result.message || 'Could not save changes.');
+      return;
+    }
+
     setEditingProduct(null);
   };
 
-  const handleAddCouponSubmit = (e: React.FormEvent) => {
+  const handleDeleteProduct = async (id: string, name: string) => {
+    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    const result = await deleteProduct(id);
+    if (!result.success) {
+      alert(result.message || 'Could not delete this product.');
+    }
+  };
+
+  const handleAddCouponSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCouponCode.trim() || newCouponValue <= 0) return;
 
-    addCoupon({
+    setCouponFormError('');
+
+    const result = await addCoupon({
       code: newCouponCode.trim().toUpperCase(),
       type: newCouponType,
       value: Number(newCouponValue),
@@ -281,8 +314,28 @@ export default function AdminDashboard() {
       active: true,
     });
 
+    if (!result.success) {
+      setCouponFormError(result.message || 'Could not create this coupon.');
+      return;
+    }
+
     setNewCouponCode('');
     setNewCouponMin('');
+  };
+
+  const handleToggleCoupon = async (code: string) => {
+    const result = await toggleCoupon(code);
+    if (!result.success) {
+      alert(result.message || 'Could not update this coupon.');
+    }
+  };
+
+  const handleDeleteCoupon = async (code: string) => {
+    if (!window.confirm(`Delete coupon "${code}"? This cannot be undone.`)) return;
+    const result = await deleteCoupon(code);
+    if (!result.success) {
+      alert(result.message || 'Could not delete this coupon.');
+    }
   };
 
   // Active vs Completed Orders Filtering
@@ -915,6 +968,11 @@ export default function AdminDashboard() {
                     </div>
                     
                     <form onSubmit={handleAddProductSubmit} className="space-y-5 text-xs font-bold uppercase tracking-wider text-brand-cocoa">
+                      {addProductError && (
+                        <div className="p-3 bg-rose-50 border border-rose-200 rounded text-[11px] font-semibold text-rose-800 normal-case">
+                          {addProductError}
+                        </div>
+                      )}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5"><label className="block">Product Name *</label><input type="text" required value={newProdName} onChange={(e) => setNewProdName(e.target.value)} placeholder="e.g. Lavender Bow Keychain" className="w-full bg-brand-offwhite border border-brand-beige rounded p-2.5 text-sm font-medium normal-case text-brand-cocoa" /></div>
                         <div className="space-y-1.5"><label className="block">Price (INR) *</label><input type="number" required value={newProdPrice || ''} onChange={(e) => setNewProdPrice(Number(e.target.value))} placeholder="e.g. 299" className="w-full bg-brand-offwhite border border-brand-beige rounded p-2.5 text-sm font-medium text-brand-cocoa" /></div>
@@ -974,7 +1032,10 @@ export default function AdminDashboard() {
                         <label className="flex items-center space-x-2"><input type="checkbox" checked={newProdBestseller} onChange={(e) => setNewProdBestseller(e.target.checked)} /><span>Bestseller</span></label>
                       </div>
 
-                      <button type="submit" className="w-full bg-brand-rose text-brand-cream py-3.5 rounded font-bold uppercase tracking-wider text-xs shadow-sm hover:bg-brand-cocoa transition-colors">Add Creation to Shop</button>
+                      <button type="submit" disabled={savingProduct} className="w-full bg-brand-rose disabled:opacity-60 text-brand-cream py-3.5 rounded font-bold uppercase tracking-wider text-xs shadow-sm hover:bg-brand-cocoa transition-colors flex items-center justify-center gap-2">
+                        {savingProduct && <Loader2 className="animate-spin" size={14} />}
+                        <span>{savingProduct ? 'Adding...' : 'Add Creation to Shop'}</span>
+                      </button>
                     </form>
                   </div>
                 </div>
@@ -986,10 +1047,15 @@ export default function AdminDashboard() {
                   <div className="bg-brand-cream border border-brand-beige w-full max-w-2xl rounded-lg shadow-2xl overflow-y-auto max-h-[90vh] p-6 sm:p-8 animate-slide-up space-y-6">
                     <div className="flex justify-between items-center border-b border-brand-beige pb-3">
                       <h4 className="font-serif text-lg font-bold text-brand-cocoa">Edit Creation Details</h4>
-                      <button onClick={() => setEditingProduct(null)}><X size={20} /></button>
+                      <button onClick={() => { setEditingProduct(null); setEditProductError(''); }}><X size={20} /></button>
                     </div>
-                    
+
                     <form onSubmit={handleSaveEditProduct} className="space-y-5 text-xs font-bold uppercase tracking-wider text-brand-cocoa">
+                      {editProductError && (
+                        <div className="p-3 bg-rose-50 border border-rose-200 rounded text-[11px] font-semibold text-rose-800 normal-case">
+                          {editProductError}
+                        </div>
+                      )}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                           <label className="block">Product Name *</label>
@@ -1057,7 +1123,10 @@ export default function AdminDashboard() {
                         <label className="flex items-center space-x-2"><input type="checkbox" checked={editingProduct.customization_available} onChange={(e) => setEditingProduct({ ...editingProduct, customization_available: e.target.checked })} /><span>Customizable</span></label>
                       </div>
 
-                      <button type="submit" className="w-full bg-brand-rose text-brand-cream py-3 rounded font-bold flex items-center justify-center space-x-2 hover:bg-brand-cocoa transition-colors uppercase tracking-wider text-xs"><Save size={16} /><span>Save Changes</span></button>
+                      <button type="submit" disabled={savingProduct} className="w-full bg-brand-rose disabled:opacity-60 text-brand-cream py-3 rounded font-bold flex items-center justify-center space-x-2 hover:bg-brand-cocoa transition-colors uppercase tracking-wider text-xs">
+                        {savingProduct ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                        <span>{savingProduct ? 'Saving...' : 'Save Changes'}</span>
+                      </button>
                     </form>
                   </div>
                 </div>
@@ -1077,7 +1146,22 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-brand-beige/30">
-                    {products.map((p) => (
+                    {loadingProducts ? (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-xs text-brand-cocoa/50 italic">
+                          <span className="inline-flex items-center gap-2">
+                            <Loader2 className="animate-spin" size={14} /> Loading products...
+                          </span>
+                        </td>
+                      </tr>
+                    ) : products.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-xs text-brand-cocoa/50 italic">
+                          No products yet.
+                        </td>
+                      </tr>
+                    ) : (
+                    products.map((p) => (
                       <tr key={p.id} className="hover:bg-brand-beige/10">
                         <td className="p-4 flex items-center space-x-3">
                           <div className="relative w-10 h-12 rounded border overflow-hidden bg-brand-cream flex-shrink-0">
@@ -1107,10 +1191,10 @@ export default function AdminDashboard() {
                         </td>
                         <td className="p-4 text-right space-x-2 whitespace-nowrap">
                           <button onClick={() => setEditingProduct(p)} className="p-1.5 rounded bg-brand-cream hover:bg-brand-rose hover:text-brand-cream border border-brand-beige text-brand-cocoa transition-colors" title="Edit"><Edit2 size={13} /></button>
-                          <button onClick={() => deleteProduct(p.id)} className="p-1.5 rounded bg-brand-cream hover:bg-brand-rose hover:text-brand-cream border border-brand-beige text-brand-cocoa transition-colors" title="Delete"><Trash2 size={13} /></button>
+                          <button onClick={() => handleDeleteProduct(p.id, p.name)} className="p-1.5 rounded bg-brand-cream hover:bg-brand-rose hover:text-brand-cream border border-brand-beige text-brand-cocoa transition-colors" title="Delete"><Trash2 size={13} /></button>
                         </td>
                       </tr>
-                    ))}
+                    )))}
                   </tbody>
                 </table>
               </div>
@@ -1643,6 +1727,11 @@ export default function AdminDashboard() {
                 <h4 className="font-serif text-lg font-bold text-brand-cocoa border-b border-brand-beige/50 pb-2">Create Coupon</h4>
                 
                 <form onSubmit={handleAddCouponSubmit} className="space-y-4 text-xs font-bold uppercase tracking-wider text-brand-cocoa">
+                  {couponFormError && (
+                    <div className="p-3 bg-rose-50 border border-rose-200 rounded text-[11px] font-semibold text-rose-800 normal-case">
+                      {couponFormError}
+                    </div>
+                  )}
                   <div className="space-y-1">
                     <label className="block">Coupon Code *</label>
                     <input type="text" required value={newCouponCode} onChange={(e) => setNewCouponCode(e.target.value)} placeholder="e.g. CROCHET10" className="w-full bg-brand-cream border border-brand-beige rounded p-2 text-sm text-brand-cocoa font-mono font-bold" />
@@ -1705,13 +1794,13 @@ export default function AdminDashboard() {
                           </span>
                           <div className="col-span-2 text-right space-x-1.5 whitespace-nowrap">
                             <button
-                              onClick={() => toggleCoupon(c.code)}
+                              onClick={() => handleToggleCoupon(c.code)}
                               className="p-1 border border-brand-beige rounded bg-brand-cream hover:bg-brand-rose hover:text-brand-cream transition-colors text-[9px] font-bold uppercase tracking-wider px-2"
                             >
                               Toggle
                             </button>
                             <button
-                              onClick={() => deleteCoupon(c.code)}
+                              onClick={() => handleDeleteCoupon(c.code)}
                               className="p-1.5 border border-brand-beige rounded bg-brand-cream hover:bg-brand-rose hover:text-brand-cream transition-colors inline-flex items-center"
                             >
                               <Trash2 size={12} />

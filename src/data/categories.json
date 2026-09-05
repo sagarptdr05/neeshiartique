@@ -1,0 +1,38 @@
+[
+  {
+    "id": "keychains",
+    "name": "Crochet Keychains",
+    "description": "Cute, pocket-sized handmade companions for your keys or bags.",
+    "image": "/images/butterfly_keychain.jpg"
+  },
+  {
+    "id": "flowers",
+    "name": "Crochet Flowers",
+    "description": "Handmade crochet flowers and floral creations that bloom forever.",
+    "image": "/images/flower_bookmark.jpg"
+  },
+  {
+    "id": "bookmarks",
+    "name": "Crochet Bookmarks",
+    "description": "Elegantly stitched stems and blossoms to mark your reading journeys.",
+    "image": "/images/flower_bookmark.jpg"
+  },
+  {
+    "id": "accessories",
+    "name": "Crochet Accessories",
+    "description": "Wearable handmade bows and bands that add soft texture to your hair.",
+    "image": "/images/hair_accessories.jpg"
+  },
+  {
+    "id": "gifts",
+    "name": "Crochet Gifts",
+    "description": "Beautifully bundled handmade sets perfect for birthdays and special moments.",
+    "image": "/images/custom_gift.jpg"
+  },
+  {
+    "id": "custom-crochet",
+    "name": "Custom Crochet",
+    "description": "Personalized designs custom-knitted in your favorite color patterns.",
+    "image": "/images/custom_gift.jpg"
+  }
+]
