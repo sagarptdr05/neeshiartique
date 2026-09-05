@@ -34,14 +34,51 @@ export async function POST(request: Request) {
         );
       }
 
-      // Fetch user profile to return role to client
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('auth_user_id', data.user.id)
-        .single();
+      // Fetch user profile to determine role
+      let userRole = 'customer';
+      let userName = data.user.user_metadata?.full_name || email.split('@')[0];
+      let userPhone = data.user.user_metadata?.phone || '';
 
-      return NextResponse.json({ success: true, role: profile?.role || 'customer' });
+      if (email.toLowerCase() === 'neeshita.art27@gmail.com') {
+        userRole = 'admin';
+      }
+
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role, full_name, phone')
+          .eq('auth_user_id', data.user.id)
+          .maybeSingle();
+
+        if (profile) {
+          userRole = profile.role || userRole;
+          userName = profile.full_name || userName;
+          userPhone = profile.phone || userPhone;
+        }
+      } catch (profileErr) {
+        console.warn('Profile fetch warning:', profileErr);
+      }
+
+      // Set secure session cookie for fast middleware & client authentication
+      const sessionData = {
+        name: userName,
+        email: data.user.email || email,
+        role: userRole,
+        phone: userPhone,
+      };
+
+      const cookieStore = await cookies();
+      const token = Buffer.from(JSON.stringify(sessionData)).toString('base64');
+
+      cookieStore.set('neeshi_session', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 7, // 7 days
+      });
+
+      return NextResponse.json({ success: true, role: userRole });
     }
 
     // 3. Fallback Mode: Local simulated JSON database
