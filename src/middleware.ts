@@ -41,17 +41,35 @@ export async function middleware(request: NextRequest) {
       // Protect /admin routes
       if (path.startsWith('/admin')) {
         if (!user) {
+          // Check fallback cookie
+          const sessionCookie = request.cookies.get('neeshi_session');
+          if (sessionCookie?.value) {
+            try {
+              const decoded = JSON.parse(Buffer.from(sessionCookie.value, 'base64').toString('utf8'));
+              if (decoded.role === 'admin') return response;
+            } catch {}
+          }
           return NextResponse.redirect(new URL(`/login?redirect=${encodeURIComponent(path)}`, request.url));
         }
 
-        // Fetch role from profiles table
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('auth_user_id', user.id)
-          .single();
+        // Automatic admin grant for primary admin email
+        if (user.email?.toLowerCase() === 'neeshita.art27@gmail.com') {
+          return response;
+        }
 
-        if (!profile || profile.role !== 'admin') {
+        // Fetch role from profiles table
+        let role = 'customer';
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('auth_user_id', user.id)
+            .maybeSingle();
+
+          if (profile?.role) role = profile.role;
+        } catch {}
+
+        if (role !== 'admin') {
           return NextResponse.redirect(new URL('/account', request.url));
         }
       }
@@ -61,20 +79,32 @@ export async function middleware(request: NextRequest) {
       const isGated = gatedPaths.some(p => path.startsWith(p));
       if (isGated) {
         if (!user) {
-          return NextResponse.redirect(new URL(`/login?redirect=${encodeURIComponent(path)}`, request.url));
+          const sessionCookie = request.cookies.get('neeshi_session');
+          if (!sessionCookie?.value) {
+            return NextResponse.redirect(new URL(`/login?redirect=${encodeURIComponent(path)}`, request.url));
+          }
         }
       }
 
       // Redirect authenticated users trying to access login/register
       if (path === '/login' || path === '/register') {
         if (user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('auth_user_id', user.id)
-            .single();
+          if (user.email?.toLowerCase() === 'neeshita.art27@gmail.com') {
+            return NextResponse.redirect(new URL('/admin', request.url));
+          }
 
-          if (profile?.role === 'admin') {
+          let role = 'customer';
+          try {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('role')
+              .eq('auth_user_id', user.id)
+              .maybeSingle();
+
+            if (profile?.role) role = profile.role;
+          } catch {}
+
+          if (role === 'admin') {
             return NextResponse.redirect(new URL('/admin', request.url));
           } else {
             return NextResponse.redirect(new URL('/account', request.url));

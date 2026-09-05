@@ -22,21 +22,40 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     try {
       const supabase = await createServerClient();
       const { data: { user }, error } = await supabase.auth.getUser();
-      if (error || !user) return null;
+      if (error || !user) {
+        // Fallback to cookie check below
+      } else {
+        let userRole = user.email?.toLowerCase() === 'neeshita.art27@gmail.com' ? 'admin' : 'customer';
+        let userName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Valued Customer';
+        let userPhone = user.user_metadata?.phone || '';
 
-      // Retrieve profile details to check role
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('full_name, email, phone, role')
-        .eq('auth_user_id', user.id)
-        .single();
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name, email, phone, role')
+            .eq('auth_user_id', user.id)
+            .maybeSingle();
 
-      return {
-        name: profile?.full_name || user.user_metadata?.full_name || user.user_metadata?.name || 'Valued Customer',
-        email: user.email || '',
-        role: profile?.role || 'customer',
-        phone: profile?.phone || user.user_metadata?.phone || '',
-      };
+          if (profile) {
+            userRole = profile.role || userRole;
+            userName = profile.full_name || userName;
+            userPhone = profile.phone || userPhone;
+          }
+        } catch (err) {
+          console.warn('Profile fetch warning:', err);
+        }
+
+        if (user.email?.toLowerCase() === 'neeshita.art27@gmail.com') {
+          userRole = 'admin';
+        }
+
+        return {
+          name: userName,
+          email: user.email || '',
+          role: userRole,
+          phone: userPhone,
+        };
+      }
     } catch (err) {
       console.error('Supabase session lookup error, falling back:', err);
     }
